@@ -117,6 +117,17 @@ std::string findColorName(const std::vector<std::string>& names) {
   return *i;
 }
 
+std::string findTransparencyUnitName(const std::vector<std::string>& names) {
+  auto i = std::find(names.begin(), names.end(), "Transparency Unit");
+  if (i == names.end()) i = std::find(names.begin(), names.end(), "Transparency");
+  if (i == names.end()) i = std::find(names.begin(), names.end(), "TPU");
+  if (i == names.end())
+    for (i = names.begin(); i != names.end(); ++i)
+      if (i->find("Transparency") != std::string::npos) break;
+  if (i == names.end()) return "";
+  return *i;
+}
+
 double roundToNearestStep(double value, double min, double step) {
   return min + ::floor((value - min) / step) * step;
 }
@@ -163,7 +174,7 @@ struct Scanner::Private {
     explicit InputSource(Private* p);
     const char* init(const sanecpp::option_set&);
     void writeCapabilitiesXml(std::ostream&) const;
-  } *mpPlaten, *mpAdfSimplex, *mpAdfDuplex;
+  } *mpPlaten, *mpAdfSimplex, *mpAdfDuplex, *mpTransparencyUnit;
 
   std::string mGrayScanModeName, mColorScanModeName;
   mutable int mCurrentProfile;
@@ -198,6 +209,7 @@ Scanner::Private::Private(Scanner* p)
       mpPlaten(nullptr),
       mpAdfSimplex(nullptr),
       mpAdfDuplex(nullptr),
+      mpTransparencyUnit(nullptr),
       mTemporaryAdfStatus(SANE_STATUS_GOOD),
       mError(nullptr) {
   sInstances.insert(this);
@@ -207,6 +219,7 @@ Scanner::Private::~Private() {
   delete mpPlaten;
   delete mpAdfSimplex;
   delete mpAdfDuplex;
+  delete mpTransparencyUnit;
   sInstances.erase(this);
 }
 
@@ -456,7 +469,8 @@ const char* Scanner::Private::init2(const OptionsFile& optionsfile) {
 
   auto sources = opt[SANE_NAME_SCAN_SOURCE].allowed_string_values();
   auto flatbedName = findFlatbedName(sources), adfSimplexName = findAdfSimplexName(sources),
-       adfDuplexName = findAdfDuplexName(sources), adfName = std::string();
+       adfDuplexName = findAdfDuplexName(sources),
+       transparencyUnitName = findTransparencyUnitName(sources), adfName = std::string();
   if (!adfDuplexName.empty())
     adfName = adfDuplexName;
   else if (!adfSimplexName.empty())
@@ -481,6 +495,22 @@ const char* Scanner::Private::init2(const OptionsFile& optionsfile) {
   }
   if (!adfSimplexName.empty() || !adfDuplexName.empty()) {
     mInputSources.push_back("Feeder");
+  }
+  if (!transparencyUnitName.empty()) {
+    mInputSources.push_back("Transparency Unit");
+    opt[SANE_NAME_SCAN_SOURCE].set_string_value(transparencyUnitName);
+    mpTransparencyUnit = new Private::InputSource(this);
+    err = mpTransparencyUnit->init(opt);
+    if (!err) {
+      mpTransparencyUnit->mSupportedIntents = std::vector<std::string>({
+          "Preview",
+          "TextAndGraphic",
+          "Photo",
+      });
+      maxBits = std::max(maxBits, mpTransparencyUnit->mMaxBits);
+      mMaxWidthPx300dpi = std::max(mMaxWidthPx300dpi, mpTransparencyUnit->mMaxWidth);
+      mMaxHeightPx300dpi = std::max(mMaxHeightPx300dpi, mpTransparencyUnit->mMaxHeight);
+    }
   }
   if (!adfSimplexName.empty()) {
     opt[SANE_NAME_SCAN_SOURCE].set_string_value(adfSimplexName);
@@ -651,6 +681,8 @@ bool Scanner::hasAdf() const { return p->mpAdfSimplex; }
 
 bool Scanner::hasDuplexAdf() const { return p->mpAdfDuplex; }
 
+bool Scanner::hasTransparencyUnit() const { return p->mpTransparencyUnit; }
+
 std::string Scanner::platenSourceName() const {
   return p->mpPlaten ? p->mpPlaten->mSourceName : "";
 }
@@ -661,6 +693,10 @@ std::string Scanner::adfSimplexSourceName() const {
 
 std::string Scanner::adfDuplexSourceName() const {
   return p->mpAdfDuplex ? p->mpAdfDuplex->mSourceName : "";
+}
+
+std::string Scanner::transparencyUnitSourceName() const {
+  return p->mpTransparencyUnit ? p->mpTransparencyUnit->mSourceName : "";
 }
 
 std::string Scanner::grayScanModeName() const { return p->mGrayScanModeName; }

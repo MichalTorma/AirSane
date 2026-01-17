@@ -263,6 +263,9 @@ void ScanJob::Private::init(const ScanSettingsXml& settings, bool autoselectForm
       mKind = adfConcat;
     else
       mKind = adfSingle;
+  } else if (inputSource == "Transparency Unit") {
+    mScanSource = mpScanner->transparencyUnitSourceName();
+    mKind = single;
   } else {
     err = PWG_INVALID_SCAN_TICKET;
     std::cerr << "unknown input source: " << inputSource << std::endl;

@@ -74,10 +74,12 @@ class Scanner {
   bool hasPlaten() const;
   bool hasAdf() const;
   bool hasDuplexAdf() const;
+  bool hasTransparencyUnit() const;
 
   std::string platenSourceName() const;
   std::string adfSimplexSourceName() const;
   std::string adfDuplexSourceName() const;
+  std::string transparencyUnitSourceName() const;
   std::string grayScanModeName() const;
   std::string colorScanModeName() const;
 
