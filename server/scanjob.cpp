@@ -523,6 +523,8 @@ SANE_Status ScanJob::Private::openSession() {
     for (const auto& option : mDeviceOptions.sane_options) opt[option.first] = option.second;
 
     // The order in which options are set matters for some backends.
+    std::clog << "Setting SANE source to: " << mScanSource << " with resolution: " << mRes_dpi
+              << std::endl;
     opt[SANE_NAME_SCAN_SOURCE] = mScanSource;
     opt[SANE_NAME_SCAN_MODE] = mColorMode;
     opt[SANE_NAME_BIT_DEPTH] = mBitDepth;
