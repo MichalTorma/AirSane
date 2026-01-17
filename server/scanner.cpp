@@ -477,6 +477,13 @@ const char* Scanner::Private::init2(const OptionsFile& optionsfile) {
     adfName = adfSimplexName;
   if (adfName.empty() && flatbedName.empty()) flatbedName = "-";
 
+  // If source is forced in options, map it to Platen as well (so eSCL clients use it)
+  std::string forcedSource = opt[SANE_NAME_SCAN_SOURCE].string_value();
+  if (mDeviceOptions.sane_options.count(SANE_NAME_SCAN_SOURCE) &&
+      std::find(sources.begin(), sources.end(), forcedSource) != sources.end()) {
+    flatbedName = forcedSource;
+  }
+
   if (!flatbedName.empty()) {
     mInputSources.push_back("Platen");
     if (flatbedName != "-") opt[SANE_NAME_SCAN_SOURCE].set_string_value(flatbedName);
