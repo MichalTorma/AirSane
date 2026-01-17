@@ -18,44 +18,34 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "uuid.h"
 
-#include <cstring>
-#include <fstream>
-#include <iostream>
-#include <functional>
-#include <iomanip>
 #include <unistd.h>
 
+#include <cstring>
+#include <fstream>
+#include <functional>
+#include <iomanip>
+#include <iostream>
+
 namespace {
-std::string
-getMachineId()
-{
+std::string getMachineId() {
   std::string id;
   std::getline(std::ifstream("/etc/machine-id"), id);
   if (id.empty()) {
-    char buf[1024] = { 0 };
-    if (!::gethostname(buf, sizeof(buf) - 1))
-      id = buf;
+    char buf[1024] = {0};
+    if (!::gethostname(buf, sizeof(buf) - 1)) id = buf;
   }
   return id;
 }
 const std::string sMachineId = getMachineId();
 
-void
-printByteGroup(const char* data, int begin, int end, std::ostream& os)
-{
-  for (auto p = data + begin; p < data + end; ++p)
-    os << (*p >> 4 & 0xf) << (*p & 0xf);
+void printByteGroup(const char* data, int begin, int end, std::ostream& os) {
+  for (auto p = data + begin; p < data + end; ++p) os << (*p >> 4 & 0xf) << (*p & 0xf);
 }
-} // namespace
+}  // namespace
 
-Uuid::Uuid()
-{
-  ::memset(mData, 0, sizeof(mData));
-}
+Uuid::Uuid() { ::memset(mData, 0, sizeof(mData)); }
 
-std::ostream&
-Uuid::print(std::ostream& os) const
-{
+std::ostream& Uuid::print(std::ostream& os) const {
   os << std::hex << std::noshowbase;
   printByteGroup(mData, 0, 4, os);
   os << "-";
@@ -69,31 +59,25 @@ Uuid::print(std::ostream& os) const
   return os;
 }
 
-std::string
-Uuid::toString() const
-{
+std::string Uuid::toString() const {
   std::ostringstream oss;
   print(oss);
   return oss.str();
 }
 
-void
-Uuid::initFromString(const std::string& inStringData)
-{
+void Uuid::initFromString(const std::string& inStringData) {
   // Make sure UUID bytes are not
   // too obviously related to original string content.
   auto hashfn = std::hash<std::string>();
   std::string s = sMachineId + inStringData;
-  union
-  {
+  union {
     size_t h;
     char c[sizeof(h)];
   } hash;
   size_t pos = 0;
   while (pos < s.length()) {
     hash.h = hashfn(s);
-    for (size_t i = 0; i < sizeof(hash) && pos + i < s.length(); ++i)
-      s[pos + i] ^= hash.c[i];
+    for (size_t i = 0; i < sizeof(hash) && pos + i < s.length(); ++i) s[pos + i] ^= hash.c[i];
     pos += sizeof(hash);
   }
   // Fill any trailing zero bytes with data.
@@ -102,8 +86,7 @@ Uuid::initFromString(const std::string& inStringData)
     s += std::string(hash.c, sizeof(hash));
   }
   ::memset(mData, 0, sizeof(mData));
-  for (size_t i = 0; i < s.length(); ++i)
-    mData[i % sizeof(mData)] ^= s[i];
+  for (size_t i = 0; i < s.length(); ++i) mData[i % sizeof(mData)] ^= s[i];
   // Mark the UUID as version 5 (which is closest to our case).
   mData[6] &= 0x0f;
   mData[6] |= 0x50;
@@ -111,12 +94,10 @@ Uuid::initFromString(const std::string& inStringData)
   mData[8] |= 0x80;
 }
 
-Uuid Uuid::Random()
-{
+Uuid Uuid::Random() {
   Uuid uuid;
   std::ifstream random("/dev/random");
-  if (!random.is_open())
-    random.open("/dev/urandom");
+  if (!random.is_open()) random.open("/dev/urandom");
   if (!random.is_open()) {
     std::cerr << "could not open /dev/random or /dev/urandom for reading" << std::endl;
     ::exit(-1);
@@ -129,4 +110,3 @@ Uuid Uuid::Random()
   uuid.mData[8] |= 0x80;
   return uuid;
 }
-

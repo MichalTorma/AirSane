@@ -17,14 +17,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "workerthread.h"
 
-#include <mutex>
-#include <condition_variable>
-#include <thread>
-#include <iostream>
 #include <cassert>
+#include <condition_variable>
+#include <iostream>
+#include <mutex>
+#include <thread>
 
-struct WorkerThread::Private
-{
+struct WorkerThread::Private {
   std::mutex mMutex;
   std::condition_variable mThreadCondition, mExecuteCondition;
   Callable* mpCallable = nullptr;
@@ -36,46 +35,39 @@ struct WorkerThread::Private
   void threadFunc();
 };
 
-WorkerThread::WorkerThread()
-  : p(new Private)
-{
+WorkerThread::WorkerThread() : p(new Private) {
   std::unique_lock<std::mutex> lock(p->mMutex);
   p->mStarted = false;
-  p->mThread = std::thread([this](){ p->threadFunc(); });
-  p->mThreadCondition.wait(lock, [this](){ return p->mStarted; });
+  p->mThread = std::thread([this]() { p->threadFunc(); });
+  p->mThreadCondition.wait(lock, [this]() { return p->mStarted; });
 }
 
-WorkerThread::~WorkerThread()
-{
+WorkerThread::~WorkerThread() {
   std::unique_lock<std::mutex> lock(p->mMutex);
   p->mTerminate = true;
   lock.unlock();
   p->mExecuteCondition.notify_one();
-  if (p->mThread.joinable())
-    p->mThread.join();
+  if (p->mThread.joinable()) p->mThread.join();
   delete p;
 }
 
-void WorkerThread::executeSynchronously(Callable& c)
-{
+void WorkerThread::executeSynchronously(Callable& c) {
   std::unique_lock<std::mutex> lock(p->mMutex);
   assert(p->mpCallable == nullptr);
   p->mpCallable = &c;
   p->mCallDone = false;
   p->mExecuteCondition.notify_one();
-  p->mThreadCondition.wait(lock, [this](){ return p->mCallDone; });
+  p->mThreadCondition.wait(lock, [this]() { return p->mCallDone; });
 }
 
-void WorkerThread::Private::threadFunc()
-{
+void WorkerThread::Private::threadFunc() {
   std::unique_lock<std::mutex> lock(mMutex);
   mStarted = true;
   lock.unlock();
   mThreadCondition.notify_one();
-  while (!mTerminate)
-  {
+  while (!mTerminate) {
     std::unique_lock<std::mutex> lock(mMutex);
-    mExecuteCondition.wait(lock, [this](){ return mTerminate || mpCallable; });
+    mExecuteCondition.wait(lock, [this]() { return mTerminate || mpCallable; });
     if (mpCallable) {
       assert(!mCallDone);
       mpCallable->onCall();

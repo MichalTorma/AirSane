@@ -23,20 +23,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #if URL_TEST
 #include <sstream>
 
-static const char* sTestCases[] =
-{
-  "",
-  "http://user:password@host.org:1234/some/path/",
-  "http://host.org:1234/some/path/",
-  "http://user:password@host.org/some/path/",
-  "http://user@host.org/some/path/",
-  "http://host.org:1234",
-  "http://host.org",
+static const char* sTestCases[] = {
+    "",
+    "http://user:password@host.org:1234/some/path/",
+    "http://host.org:1234/some/path/",
+    "http://user:password@host.org/some/path/",
+    "http://user@host.org/some/path/",
+    "http://host.org:1234",
+    "http://host.org",
 };
-static struct UrlTest
-{
-  UrlTest()
-  {
+static struct UrlTest {
+  UrlTest() {
     for (auto pCase : sTestCases) {
       Url url(pCase);
       std::ostringstream oss;
@@ -48,14 +45,12 @@ static struct UrlTest
 } sUrlTest;
 #endif
 
-Url::Url(const std::string &url)
-{
+Url::Url(const std::string& url) {
   size_t pos = url.find("://");
   if (pos != std::string::npos) {
     mProtocol = url.substr(0, pos);
     pos += 3;
-  }
-  else {
+  } else {
     pos = 0;
   }
   size_t pos2 = url.find("@", pos);
@@ -65,8 +60,7 @@ Url::Url(const std::string &url)
     if (pos3 != std::string::npos) {
       mUser = userandpw.substr(0, pos3);
       mPassword = userandpw.substr(pos3 + 1);
-    }
-    else {
+    } else {
       mUser = userandpw;
     }
     pos = pos2 + 1;
@@ -77,8 +71,7 @@ Url::Url(const std::string &url)
   if (pos3 != std::string::npos) {
     mHost = hostandport.substr(0, pos3);
     mPort = hostandport.substr(pos3 + 1);
-  }
-  else {
+  } else {
     mHost = hostandport;
   }
   if (pos2 != std::string::npos) {
@@ -86,19 +79,15 @@ Url::Url(const std::string &url)
   }
 }
 
-std::ostream& Url::print(std::ostream& os) const
-{
-  if (!mProtocol.empty())
-     os << mProtocol << "://";
+std::ostream& Url::print(std::ostream& os) const {
+  if (!mProtocol.empty()) os << mProtocol << "://";
   if (!mUser.empty()) {
     os << mUser;
-    if (!mPassword.empty())
-      os << ":" << mPassword;
+    if (!mPassword.empty()) os << ":" << mPassword;
     os << "@";
   }
   os << mHost;
-  if (!mPort.empty())
-      os << ":" << mPort;
+  if (!mPort.empty()) os << ":" << mPort;
   os << mPath;
   return os;
 }

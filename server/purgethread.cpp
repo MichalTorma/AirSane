@@ -18,12 +18,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "purgethread.h"
 
-#include <thread>
-#include <unistd.h>
 #include <sys/select.h>
+#include <unistd.h>
 
-struct PurgeThread::Private
-{
+#include <thread>
+
+struct PurgeThread::Private {
   const ScannerList* mpScanners;
   std::thread* mpThread;
   int mWriteFd, mReadFd;
@@ -35,17 +35,15 @@ struct PurgeThread::Private
   bool interruptibleSleep(int seconds);
 };
 
-void PurgeThread::Private::start()
-{
+void PurgeThread::Private::start() {
   int fds[2] = {0};
   ::pipe(fds);
   mReadFd = fds[0];
   mWriteFd = fds[1];
-  mpThread = new std::thread([this]{threadFunc();});
+  mpThread = new std::thread([this] { threadFunc(); });
 }
 
-void PurgeThread::Private::terminate()
-{
+void PurgeThread::Private::terminate() {
   if (mpThread->joinable()) {
     char c = 'x';
     ::write(mWriteFd, &c, 1);
@@ -55,23 +53,20 @@ void PurgeThread::Private::terminate()
   ::close(mWriteFd);
 }
 
-void PurgeThread::Private::threadFunc()
-{
+void PurgeThread::Private::threadFunc() {
   while (interruptibleSleep(mSleepDuration)) {
     for (const auto& entry : *mpScanners) {
       int count = entry.pScanner->purgeJobs(mMaxTime);
-      if (count > 0)
-        std::clog << "purged " << count << " jobs" << std::endl;
+      if (count > 0) std::clog << "purged " << count << " jobs" << std::endl;
     }
   }
 }
 
-bool PurgeThread::Private::interruptibleSleep(int seconds)
-{
+bool PurgeThread::Private::interruptibleSleep(int seconds) {
   fd_set readSet;
   FD_ZERO(&readSet);
   FD_SET(mReadFd, &readSet);
-  struct timeval timeout = { seconds, 0 };
+  struct timeval timeout = {seconds, 0};
   int count = 0;
   do {
     count = ::select(mReadFd + 1, &readSet, nullptr, nullptr, &timeout);
@@ -80,16 +75,14 @@ bool PurgeThread::Private::interruptibleSleep(int seconds)
 }
 
 PurgeThread::PurgeThread(const ScannerList& scanners, int sleepDuration, int maxTime)
-: p(new Private)
-{
+    : p(new Private) {
   p->mpScanners = &scanners;
   p->mSleepDuration = sleepDuration;
   p->mMaxTime = maxTime;
   p->start();
 }
 
-PurgeThread::~PurgeThread()
-{
+PurgeThread::~PurgeThread() {
   p->terminate();
   delete p;
 }

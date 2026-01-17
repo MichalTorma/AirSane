@@ -21,12 +21,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <iostream>
 
-class ImageEncoder
-{
+class ImageEncoder {
   ImageEncoder(const ImageEncoder&) = delete;
   ImageEncoder& operator=(const ImageEncoder&) = delete;
 
-public:
+ public:
   ImageEncoder();
   virtual ~ImageEncoder() {}
 
@@ -45,12 +44,7 @@ public:
   ImageEncoder& setOrientationDegrees(int);
   int orientationDegrees() const;
 
-  enum Colorspace
-  {
-    Unknown,
-    Grayscale,
-    RGB
-  };
+  enum Colorspace { Unknown, Grayscale, RGB };
   ImageEncoder& setColorspace(Colorspace cs);
   Colorspace colorspace() const;
 
@@ -67,7 +61,7 @@ public:
 
   int encodedSize() const;
 
-protected:
+ protected:
   virtual int onEncodedSize() const { return -1; }
   virtual void onDocumentBegin() {}
   virtual void onDocumentEnd() {}
@@ -77,11 +71,11 @@ protected:
 
   void onParamChange();
 
-private:
+ private:
   int mWidth, mHeight, mComponents, mBitDepth, mDpi, mOrientationDegrees;
   int mBytesPerLine, mCurrentLine, mCurrentImage;
   Colorspace mColorspace;
   std::ostream* mpDestination;
 };
 
-#endif // IMAGEENCODER_H
+#endif  // IMAGEENCODER_H

@@ -17,52 +17,42 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "fdbuf.h"
-#include <cassert>
-#include <cstring>
+
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-fdbuf::fdbuf(int fd, int putback)
-  : mFd(fd)
-  , mPutback(putback)
-  , mTotalWritten(0)
-{
+#include <cassert>
+#include <cstring>
+
+fdbuf::fdbuf(int fd, int putback) : mFd(fd), mPutback(putback), mTotalWritten(0) {
   assert(mPutback < sizeof(mInbuf));
   setp(mOutbuf, mOutbuf + sizeof(mOutbuf) - 1);
   setg(nullptr, nullptr, nullptr);
 }
 
-fdbuf::~fdbuf()
-{
+fdbuf::~fdbuf() {
   fdbuf::sync();
   ::close(mFd);
 }
 
-fdbuf::int_type
-fdbuf::overflow(int_type c)
-{
+fdbuf::int_type fdbuf::overflow(int_type c) {
   if (c != traits_type::eof()) {
     *pptr() = char(c);
     pbump(1);
-    if (sync() == 0)
-      return c;
+    if (sync() == 0) return c;
   }
   return traits_type::eof();
 }
 
-fdbuf::int_type
-fdbuf::sync()
-{
+fdbuf::int_type fdbuf::sync() {
   auto n = pptr() - pbase();
   pbump(-n);
   const char* p = pbase();
   while (n > 0) {
     int written = ::write(mFd, p, n);
     if (written < 0) {
-      if (errno != EINTR)
-        return -1;
-    }
-    else { // written >= 0
+      if (errno != EINTR) return -1;
+    } else {  // written >= 0
       n -= written;
       p += written;
       mTotalWritten += written;
@@ -71,12 +61,10 @@ fdbuf::sync()
   return 0;
 }
 
-fdbuf::int_type
-fdbuf::underflow()
-{
+fdbuf::int_type fdbuf::underflow() {
   if (gptr() >= egptr()) {
     char *start = mInbuf, *endbuf = mInbuf + sizeof(mInbuf);
-    if (eback() == mInbuf) { // not first call
+    if (eback() == mInbuf) {  // not first call
       ::memmove(mInbuf, gptr() - mPutback, mPutback);
       start = mInbuf + mPutback;
     }
@@ -92,19 +80,14 @@ fdbuf::underflow()
       return traits_type::eof();
 
     int read = ::read(mFd, start, n);
-    if (read == 0 || (read < 0 && errno != EINTR))
-      return traits_type::eof();
-    if (read > 0)
-      setg(mInbuf, start, start + read);
+    if (read == 0 || (read < 0 && errno != EINTR)) return traits_type::eof();
+    if (read > 0) setg(mInbuf, start, start + read);
   }
   return traits_type::to_int_type(*gptr());
 }
 
-std::streampos
-fdbuf::seekoff(std::streambuf::off_type offset,
-               std::ios_base::seekdir dir,
-               std::ios_base::openmode mode)
-{
+std::streampos fdbuf::seekoff(std::streambuf::off_type offset, std::ios_base::seekdir dir,
+                              std::ios_base::openmode mode) {
   if (offset == 0 && dir == std::ios_base::cur && mode == std::ios_base::out)
     return mTotalWritten + pptr() - mOutbuf;
   return -1;

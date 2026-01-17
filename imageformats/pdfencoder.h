@@ -23,25 +23,24 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 class Dictionary;
 
-class PdfEncoder : public ImageEncoder
-{
-public:
+class PdfEncoder : public ImageEncoder {
+ public:
   PdfEncoder();
   ~PdfEncoder();
 
   Dictionary& documentInfo();
   const Dictionary& documentInfo() const;
 
-protected:
+ protected:
   void onDocumentBegin() override;
   void onDocumentEnd() override;
   void onImageBegin() override;
   void onImageEnd() override;
   void onWriteLine(const void*) override;
 
-private:
+ private:
   struct Private;
   Private* p;
 };
 
-#endif // PDFENCODER_H
+#endif  // PDFENCODER_H

@@ -24,14 +24,9 @@ extern const char* GIT_REVISION_NUMBER;
 extern const char* BUILD_TIME_STAMP;
 
 MainPage::MainPage(const ScannerList& scanners, bool resetoption, bool discloseversion)
-  : mScanners(scanners)
-  , mResetoption(resetoption)
-  , mDiscloseversion(discloseversion)
-{}
+    : mScanners(scanners), mResetoption(resetoption), mDiscloseversion(discloseversion) {}
 
-void
-MainPage::onRender()
-{
+void MainPage::onRender() {
   out() << heading(1).addText(title()) << std::endl;
 
   out() << heading(2).addText("Scanners");
@@ -44,11 +39,10 @@ MainPage::onRender()
 
       std::string icondef;
       std::string iconUrl = HttpServer::toRelativeUrl(s.pScanner->iconUrl());
-      if (!iconUrl.empty() ) {
-        icondef = "<img src='" + iconUrl + "'"
-                + " alt='Scanner Icon'"
-                + " style='width:1.2em;height:1.2em;vertical-align:bottom;padding-right:0.6em'"
-                + ">";
+      if (!iconUrl.empty()) {
+        icondef = "<img src='" + iconUrl + "'" + " alt='Scanner Icon'" +
+                  " style='width:1.2em;height:1.2em;vertical-align:bottom;padding-right:0.6em'" +
+                  ">";
       }
       std::string scannerUrl = HttpServer::toRelativeUrl(s.pScanner->adminUrl());
       scannersList.addItem(anchor(scannerUrl).addContent(icondef).addText(name));
@@ -60,12 +54,10 @@ MainPage::onRender()
   if (mDiscloseversion) {
     out() << heading(2).addText("Build");
     list version;
-    version.addItem(
-      paragraph().addText(std::string("date: ") + BUILD_TIME_STAMP));
+    version.addItem(paragraph().addText(std::string("date: ") + BUILD_TIME_STAMP));
     version.addContent("\n");
-    version.addItem(paragraph().addText(
-      std::string("commit: ") + GIT_COMMIT_HASH + " (branch " + GIT_BRANCH +
-      ", revision " + GIT_REVISION_NUMBER + ")"));
+    version.addItem(paragraph().addText(std::string("commit: ") + GIT_COMMIT_HASH + " (branch " +
+                                        GIT_BRANCH + ", revision " + GIT_REVISION_NUMBER + ")"));
     version.addContent("\n");
     out() << version << std::endl;
   }

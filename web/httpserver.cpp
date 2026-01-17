@@ -18,14 +18,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "httpserver.h"
 
+#include <arpa/inet.h>
+
 #include <atomic>
 #include <cstring>
 #include <ctime>
+#include <mutex>
 #include <sstream>
 #include <thread>
-#include <mutex>
-
-#include <arpa/inet.h>
 #ifdef __FreeBSD__
 #include <netinet/in.h>
 #endif
@@ -36,13 +36,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <pthread.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-#include <sys/un.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <unistd.h>
 
-#include "web/accessfile.h"
 #include "basic/fdbuf.h"
 #include "errorpage.h"
+#include "web/accessfile.h"
 
 const char* HttpServer::HTTP_GET = "GET";
 const char* HttpServer::HTTP_POST = "POST";
@@ -66,34 +66,22 @@ const char* HttpServer::MIME_TYPE_PNG = "image/png";
 namespace {
 
 const std::locale clocale = std::locale("C");
-std::string
-ctolower(const std::string& s)
-{
+std::string ctolower(const std::string& s) {
   std::string r = s;
-  for (auto& c : r)
-    c = std::tolower(c, clocale);
+  for (auto& c : r) c = std::tolower(c, clocale);
   return r;
 }
 
-std::string
-ctrim(const std::string& s)
-{
+std::string ctrim(const std::string& s) {
   std::string r;
   for (const auto& c : s)
-    if (!std::isspace(c, clocale))
-      r += c;
+    if (!std::isspace(c, clocale)) r += c;
   return r;
 }
 
-long
-hexdecode(const std::string& s)
-{
-  return ::strtol(s.c_str(), nullptr, 16);
-}
+long hexdecode(const std::string& s) { return ::strtol(s.c_str(), nullptr, 16); }
 
-std::string
-urldecode(const std::string& s)
-{
+std::string urldecode(const std::string& s) {
   std::string r;
   for (size_t i = 0; i < s.size(); ++i) {
     if (s[i] == '%') {
@@ -113,9 +101,7 @@ urldecode(const std::string& s)
   return r;
 }
 
-std::string
-describeAddress(const HttpServer::Sockaddr& address)
-{
+std::string describeAddress(const HttpServer::Sockaddr& address) {
   std::ostringstream oss;
   switch (address.sa.sa_family) {
     case AF_INET:
@@ -129,9 +115,7 @@ describeAddress(const HttpServer::Sockaddr& address)
   return oss.str();
 }
 
-std::vector<HttpServer::Sockaddr>
-interfaceAddresses(const char* if_name)
-{
+std::vector<HttpServer::Sockaddr> interfaceAddresses(const char* if_name) {
   std::vector<HttpServer::Sockaddr> r;
   struct ifaddrs* pAddr;
   if (::getifaddrs(&pAddr)) {
@@ -157,11 +141,9 @@ interfaceAddresses(const char* if_name)
   return r;
 }
 
-} // namespace
+}  // namespace
 
-std::string
-HttpServer::ipString(const HttpServer::Sockaddr& address)
-{
+std::string HttpServer::ipString(const HttpServer::Sockaddr& address) {
   char buf[128] = "n/a";
   switch (address.sa.sa_family) {
     case AF_INET:
@@ -179,9 +161,7 @@ HttpServer::ipString(const HttpServer::Sockaddr& address)
   return buf;
 }
 
-uint16_t
-HttpServer::portNumber(const HttpServer::Sockaddr& address)
-{
+uint16_t HttpServer::portNumber(const HttpServer::Sockaddr& address) {
   switch (address.sa.sa_family) {
     case AF_INET:
       return ntohs(address.in.sin_port);
@@ -191,9 +171,7 @@ HttpServer::portNumber(const HttpServer::Sockaddr& address)
   return 0;
 }
 
-struct HttpServer::Private
-{
-
+struct HttpServer::Private {
   HttpServer* mInstance;
   std::atomic<int> mTerminationStatus, mLastError;
 
@@ -207,21 +185,19 @@ struct HttpServer::Private
   std::atomic<int> mPipeWriteFd;
 
   Private(HttpServer* instance)
-    : mInstance(instance)
-    , mTerminationStatus(0)
-    , mLastError(0)
-    , mPort(0)
-    , mInterfaceIndex(invalidInterface)
-    , mBacklog(SOMAXCONN)
-    , mRunning(false)
-    , mPipeWriteFd(-1)
-  {}
+      : mInstance(instance),
+        mTerminationStatus(0),
+        mLastError(0),
+        mPort(0),
+        mInterfaceIndex(invalidInterface),
+        mBacklog(SOMAXCONN),
+        mRunning(false),
+        mPipeWriteFd(-1) {}
 
-  int determineAddresses(std::vector<Sockaddr>& addresses)
-  {
+  int determineAddresses(std::vector<Sockaddr>& addresses) {
     int err = 0;
     if (!mUnixSocket.empty()) {
-      Sockaddr addr = { 0 };
+      Sockaddr addr = {0};
       addr.sa.sa_family = AF_UNIX;
       if (mUnixSocket.length() >= sizeof(addr.un.sun_path))
         err = ENAMETOOLONG;
@@ -229,23 +205,19 @@ struct HttpServer::Private
         ::strncpy(addr.un.sun_path, mUnixSocket.c_str(), sizeof(addr.un.sun_path));
         addresses.push_back(addr);
       }
-    }
-    else {
+    } else {
       const char* if_name = nullptr;
       if (mInterfaceIndex == invalidInterface)
         err = ENXIO;
       else if (mInterfaceIndex != anyInterface)
         if_name = mInterfaceName.c_str();
-      if (!err)
-        addresses = interfaceAddresses(if_name);
+      if (!err) addresses = interfaceAddresses(if_name);
     }
-    if (!err && addresses.empty())
-      err = EINVAL;
+    if (!err && addresses.empty()) err = EINVAL;
     return err;
   }
 
-  int createListeningSocket(Sockaddr& addr)
-  {
+  int createListeningSocket(Sockaddr& addr) {
     size_t socklen = 0;
     switch (addr.sa.sa_family) {
       case AF_INET:
@@ -261,23 +233,17 @@ struct HttpServer::Private
         break;
     }
     int sockfd = ::socket(addr.sa.sa_family, SOCK_STREAM, 0);
-    if (sockfd < 0)
-      return -1;
+    if (sockfd < 0) return -1;
     int err = 0;
     if (addr.sa.sa_family == AF_UNIX) {
       ::unlink(addr.un.sun_path);
-    }
-    else {
+    } else {
       int reuseaddr = 1;
-      err = ::setsockopt(
-        sockfd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(reuseaddr));
+      err = ::setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(reuseaddr));
     }
-    if (!err)
-      err = ::bind(sockfd, &addr.sa, socklen);
-    if (!err && addr.sa.sa_family == AF_UNIX)
-      ::chmod(addr.un.sun_path, 0660);
-    if (!err)
-      err = ::listen(sockfd, mBacklog);
+    if (!err) err = ::bind(sockfd, &addr.sa, socklen);
+    if (!err && addr.sa.sa_family == AF_UNIX) ::chmod(addr.un.sun_path, 0660);
+    if (!err) err = ::listen(sockfd, mBacklog);
     if (err) {
       ::close(sockfd);
       sockfd = -1;
@@ -285,8 +251,7 @@ struct HttpServer::Private
     return sockfd;
   }
 
-  bool run()
-  {
+  bool run() {
     bool wasRunning = false;
     mRunning.compare_exchange_strong(wasRunning, true);
     if (wasRunning) {
@@ -294,7 +259,7 @@ struct HttpServer::Private
       mTerminationStatus = -1;
       return false;
     }
-    int pipe[] = { -1, -1 };
+    int pipe[] = {-1, -1};
     if (::pipe(pipe) < 0) {
       mLastError = errno;
       mTerminationStatus = -1;
@@ -312,13 +277,13 @@ struct HttpServer::Private
       pfds[0].events = POLLIN;
       for (auto& address : addresses) {
         int sockfd = createListeningSocket(address);
-        if (sockfd < 0 && errno != EADDRNOTAVAIL) // may occur due to race condition at network reconfiguration
+        if (sockfd < 0 &&
+            errno != EADDRNOTAVAIL)  // may occur due to race condition at network reconfiguration
           err = errno;
         else {
-          struct pollfd pfd = { sockfd, POLLIN, 0 };
+          struct pollfd pfd = {sockfd, POLLIN, 0};
           pfds.push_back(pfd);
-          std::clog << "listening on " << describeAddress(address)
-                    << std::endl;
+          std::clog << "listening on " << describeAddress(address) << std::endl;
         }
       }
       bool done = (err != 0);
@@ -339,10 +304,7 @@ struct HttpServer::Private
               Sockaddr addr;
               socklen_t len = sizeof(addr);
               int fd = ::accept(pfds[i].fd, &addr.sa, &len);
-              if (fd >= 0)
-                std::thread([this, fd, addr]() {
-                  handleRequest(fd, addr);
-                }).detach();
+              if (fd >= 0) std::thread([this, fd, addr]() { handleRequest(fd, addr); }).detach();
             }
           }
         } else if (r < 0 && errno != EINTR) {
@@ -351,12 +313,10 @@ struct HttpServer::Private
           std::cerr << ::strerror(err) << std::endl;
         }
       }
-      for (size_t i = 1; i < pfds.size(); ++i)
-        ::close(pfds[i].fd);
+      for (size_t i = 1; i < pfds.size(); ++i) ::close(pfds[i].fd);
     }
     mLastError = err;
-    if (err && !mTerminationStatus)
-      mTerminationStatus = -1;
+    if (err && !mTerminationStatus) mTerminationStatus = -1;
     ::close(pipeReadFd);
     ::close(mPipeWriteFd);
     mPipeWriteFd = -1;
@@ -364,18 +324,15 @@ struct HttpServer::Private
     return err == 0;
   }
 
-  bool terminate(int status)
-  {
+  bool terminate(int status) {
     if (!mRunning) {
       mTerminationStatus = status;
       return true;
     }
-    return ::write(mPipeWriteFd, &status, sizeof(mTerminationStatus)) ==
-           sizeof(mTerminationStatus);
+    return ::write(mPipeWriteFd, &status, sizeof(mTerminationStatus)) == sizeof(mTerminationStatus);
   }
 
-  void handleRequest(int fd, Sockaddr address)
-  {
+  void handleRequest(int fd, Sockaddr address) {
     std::unique_lock<std::mutex> lock(mAccessFileMutex);
     if (!mAccessFile.isAllowed(address)) {
       ::close(fd);
@@ -406,36 +363,29 @@ struct HttpServer::Private
       char time[80] = "n/a";
       time_t now = ::time(nullptr);
       struct tm tm_;
-      ::strftime(
-        time, sizeof(time), "%d/%b/%Y:%T %z", ::localtime_r(&now, &tm_));
+      ::strftime(time, sizeof(time), "%d/%b/%Y:%T %z", ::localtime_r(&now, &tm_));
 
-      std::cout // apache combined log format, custom loginfo added
-        << ipString(address) << " - - [" << time << "] "
-        << "\"" << request.method() << " " << request.uri() << "\" "
-        << response.status() << " " << os.tellp() - response.contentBegin()
-        << " \"" << request.header(HTTP_HEADER_REFERER) << "\""
-        << " \"" << request.header(HTTP_HEADER_USER_AGENT) << "\""
-        << (request.logInfo().empty() ? "" : " \"" + request.logInfo() + "\"")
-        << std::endl;
+      std::cout  // apache combined log format, custom loginfo added
+          << ipString(address) << " - - [" << time << "] "
+          << "\"" << request.method() << " " << request.uri() << "\" " << response.status() << " "
+          << os.tellp() - response.contentBegin() << " \"" << request.header(HTTP_HEADER_REFERER)
+          << "\""
+          << " \"" << request.header(HTTP_HEADER_USER_AGENT) << "\""
+          << (request.logInfo().empty() ? "" : " \"" + request.logInfo() + "\"") << std::endl;
     }
   }
 };
 
-std::string
-HttpServer::toRelativeUrl(const std::string& url)
-{
+std::string HttpServer::toRelativeUrl(const std::string& url) {
   size_t pos = url.find("://");
-  if (pos != std::string::npos)
-  {
+  if (pos != std::string::npos) {
     pos = url.find("/", pos + 3);
     return url.substr(pos);
   }
   return url;
 }
 
-std::string
-HttpServer::statusReason(int status)
-{
+std::string HttpServer::statusReason(int status) {
   switch (status) {
     case HttpServer::HTTP_OK:
       return "OK";
@@ -453,32 +403,18 @@ HttpServer::statusReason(int status)
   return "Unknown Reason";
 }
 
-std::string
-HttpServer::fileExtension(const std::string& mimeType)
-{
-  if (mimeType == HttpServer::MIME_TYPE_JPEG)
-    return ".jpg";
-  if (mimeType == HttpServer::MIME_TYPE_PDF)
-    return ".pdf";
-  if (mimeType == HttpServer::MIME_TYPE_PNG)
-    return ".png";
+std::string HttpServer::fileExtension(const std::string& mimeType) {
+  if (mimeType == HttpServer::MIME_TYPE_JPEG) return ".jpg";
+  if (mimeType == HttpServer::MIME_TYPE_PDF) return ".pdf";
+  if (mimeType == HttpServer::MIME_TYPE_PNG) return ".png";
   return "";
 }
 
-HttpServer::HttpServer()
-  : p(new Private(this))
-{
-  setInterfaceIndex(anyInterface).setPort(8080);
-}
+HttpServer::HttpServer() : p(new Private(this)) { setInterfaceIndex(anyInterface).setPort(8080); }
 
-HttpServer::~HttpServer()
-{
-  delete p;
-}
+HttpServer::~HttpServer() { delete p; }
 
-HttpServer&
-HttpServer::setInterfaceName(const std::string& s)
-{
+HttpServer& HttpServer::setInterfaceName(const std::string& s) {
   if (s == "*") {
     p->mInterfaceName = "*";
     p->mInterfaceIndex = anyInterface;
@@ -495,9 +431,7 @@ HttpServer::setInterfaceName(const std::string& s)
   return *this;
 }
 
-HttpServer&
-HttpServer::setInterfaceIndex(int i)
-{
+HttpServer& HttpServer::setInterfaceIndex(int i) {
   if (i == anyInterface) {
     p->mInterfaceName = "*";
     p->mInterfaceIndex = anyInterface;
@@ -506,7 +440,7 @@ HttpServer::setInterfaceIndex(int i)
     p->mInterfaceIndex = invalidInterface;
   } else {
     unsigned int idx = i;
-    char buf[IF_NAMESIZE] = { 0 };
+    char buf[IF_NAMESIZE] = {0};
     if (::if_indextoname(idx, buf)) {
       p->mInterfaceName = buf;
       p->mInterfaceIndex = i;
@@ -518,109 +452,56 @@ HttpServer::setInterfaceIndex(int i)
   return *this;
 }
 
-int
-HttpServer::interfaceIndex() const
-{
-  return p->mInterfaceIndex;
-}
+int HttpServer::interfaceIndex() const { return p->mInterfaceIndex; }
 
-HttpServer&
-HttpServer::setPort(uint16_t port)
-{
+HttpServer& HttpServer::setPort(uint16_t port) {
   p->mPort = port;
   return *this;
 }
 
-uint16_t
-HttpServer::port() const
-{
-  return p->mPort;
-}
+uint16_t HttpServer::port() const { return p->mPort; }
 
-HttpServer&
-HttpServer::setUnixSocket(const std::string &path)
-{
+HttpServer& HttpServer::setUnixSocket(const std::string& path) {
   p->mUnixSocket = path;
   return *this;
 }
 
-const std::string&
-HttpServer::unixSocket() const
-{
-  return p->mUnixSocket;
-}
+const std::string& HttpServer::unixSocket() const { return p->mUnixSocket; }
 
-HttpServer&
-HttpServer::setBacklog(int backlog)
-{
+HttpServer& HttpServer::setBacklog(int backlog) {
   p->mBacklog = backlog;
   return *this;
 }
 
-int
-HttpServer::backlog() const
-{
-  return p->mBacklog;
-}
+int HttpServer::backlog() const { return p->mBacklog; }
 
-HttpServer&
-HttpServer::applyAccessFile(const AccessFile& file)
-{
+HttpServer& HttpServer::applyAccessFile(const AccessFile& file) {
   std::lock_guard<std::mutex> lock(p->mAccessFileMutex);
   p->mAccessFile = file;
   return *this;
 }
 
-bool
-HttpServer::run()
-{
-  return p->run();
-}
+bool HttpServer::run() { return p->run(); }
 
-bool
-HttpServer::terminate(int status)
-{
-  return p->terminate(status);
-}
+bool HttpServer::terminate(int status) { return p->terminate(status); }
 
-int
-HttpServer::terminationStatus() const
-{
-  return p->mTerminationStatus;
-}
+int HttpServer::terminationStatus() const { return p->mTerminationStatus; }
 
-int
-HttpServer::lastError() const
-{
-  return p->mLastError;
-}
+int HttpServer::lastError() const { return p->mLastError; }
 
-void
-HttpServer::onRequest(const HttpServer::Request&,
-                      HttpServer::Response&)
-{
-}
+void HttpServer::onRequest(const HttpServer::Request&, HttpServer::Response&) {}
 
-struct HttpServer::Response::Chunkstream : std::ostream
-{
-  explicit Chunkstream(std::ostream& os)
-    : std::ostream(&mBuf)
-    , mBuf(os)
-  {}
-  struct chunkbuf : std::stringbuf
-  {
+struct HttpServer::Response::Chunkstream : std::ostream {
+  explicit Chunkstream(std::ostream& os) : std::ostream(&mBuf), mBuf(os) {}
+  struct chunkbuf : std::stringbuf {
     std::ostream& mStream;
     std::streampos mTotalWritten;
-    explicit chunkbuf(std::ostream& os)
-      : mStream(os)
-    {}
-    ~chunkbuf()
-    {
+    explicit chunkbuf(std::ostream& os) : mStream(os) {}
+    ~chunkbuf() {
       pubsync();
       mStream << "0\r\n\r\n" << std::flush;
     }
-    int sync() override
-    {
+    int sync() override {
       std::stringbuf::sync();
       std::string s = str();
       if (!s.empty()) {
@@ -632,12 +513,9 @@ struct HttpServer::Response::Chunkstream : std::ostream
       }
       return !!mStream ? 0 : -1;
     }
-    std::streampos seekoff(off_type offset,
-                           std::ios_base::seekdir dir,
-                           std::ios_base::openmode mode) override
-    {
-      if (offset == 0 && dir == std::ios_base::cur &&
-          mode == std::ios_base::out)
+    std::streampos seekoff(off_type offset, std::ios_base::seekdir dir,
+                           std::ios_base::openmode mode) override {
+      if (offset == 0 && dir == std::ios_base::cur && mode == std::ios_base::out)
         return mTotalWritten + std::stringbuf::seekoff(offset, dir, mode);
       return -1;
     }
@@ -645,22 +523,12 @@ struct HttpServer::Response::Chunkstream : std::ostream
 };
 
 HttpServer::Response::Response(std::ostream& os)
-  : mStream(os)
-  , mSent(false)
-  , mContentBegin(0)
-  , mStatus(HTTP_OK)
-  , mpChunkstream(nullptr)
-{}
+    : mStream(os), mSent(false), mContentBegin(0), mStatus(HTTP_OK), mpChunkstream(nullptr) {}
 
-HttpServer::Response::~Response()
-{
-  delete mpChunkstream;
-}
+HttpServer::Response::~Response() { delete mpChunkstream; }
 
-HttpServer::Response&
-HttpServer::Response::setHeader(const std::string& key,
-                                const std::string& value)
-{
+HttpServer::Response& HttpServer::Response::setHeader(const std::string& key,
+                                                      const std::string& value) {
   auto nkey = ctolower(ctrim(key));
   auto nvalue = ctrim(value);
   if (nvalue.empty())
@@ -670,37 +538,27 @@ HttpServer::Response::setHeader(const std::string& key,
   return *this;
 }
 
-HttpServer::Response&
-HttpServer::Response::setHeader(const std::string& key, int value)
-{
+HttpServer::Response& HttpServer::Response::setHeader(const std::string& key, int value) {
   std::ostringstream oss;
   oss << value;
   return setHeader(key, oss.str());
 }
 
-const std::string&
-HttpServer::Response::header(const std::string& key) const
-{
+const std::string& HttpServer::Response::header(const std::string& key) const {
   return mHeaders[ctolower(ctrim(key))];
 }
 
-std::ostream&
-HttpServer::Response::send()
-{
+std::ostream& HttpServer::Response::send() {
   setHeader(HTTP_HEADER_CONTENT_LENGTH, "");
   return sendHeaders();
 }
 
-void
-HttpServer::Response::sendWithContent(const std::string& s)
-{
+void HttpServer::Response::sendWithContent(const std::string& s) {
   setHeader(HTTP_HEADER_CONTENT_LENGTH, s.size());
   sendHeaders().write(s.data(), s.size()).flush();
 }
 
-std::ostream&
-HttpServer::Response::sendHeaders()
-{
+std::ostream& HttpServer::Response::sendHeaders() {
   setHeader(HTTP_HEADER_CONNECTION, "close");
   std::string encoding = ctolower(header(HTTP_HEADER_TRANSFER_ENCODING));
   if (encoding == "identity") {
@@ -714,22 +572,17 @@ HttpServer::Response::sendHeaders()
 
   mStream << "HTTP/1.1 " << mStatus << " " << statusReason(mStatus) << "\r\n";
   for (const auto& h : mHeaders)
-    if (!h.second.empty())
-      mStream << h.first << ": " << h.second << "\r\n";
+    if (!h.second.empty()) mStream << h.first << ": " << h.second << "\r\n";
   mStream << "\r\n" << std::flush;
   mSent = true;
   mContentBegin = mStream.tellp();
   return mpChunkstream ? *mpChunkstream : mStream;
 }
 
-HttpServer::Request::Request(std::istream& is)
-  : mStream(is)
-  , mValid(true)
-{
+HttpServer::Request::Request(std::istream& is) : mStream(is), mValid(true) {
   std::string line;
   if (std::getline(is, line)) {
-    if (!(std::istringstream(line) >> mMethod >> mUri >> mProtocol))
-      mValid = false;
+    if (!(std::istringstream(line) >> mMethod >> mUri >> mProtocol)) mValid = false;
   }
   while (mValid && std::getline(is, line) && line != "\r") {
     if (line.empty())
@@ -749,9 +602,7 @@ HttpServer::Request::Request(std::istream& is)
   }
 }
 
-const std::string&
-HttpServer::Request::content() const
-{
+const std::string& HttpServer::Request::content() const {
   int length = contentLength();
   if (mContent.empty() && length >= 0) {
     mContent.resize(length);
@@ -760,17 +611,12 @@ HttpServer::Request::content() const
   return mContent;
 }
 
-bool
-HttpServer::Request::hasFormData() const
-{
-  return header(HTTP_HEADER_CONTENT_TYPE) ==
-           "application/x-www-form-urlencoded" &&
+bool HttpServer::Request::hasFormData() const {
+  return header(HTTP_HEADER_CONTENT_TYPE) == "application/x-www-form-urlencoded" &&
          contentLength() > 0;
 }
 
-const Dictionary&
-HttpServer::Request::formData() const
-{
+const Dictionary& HttpServer::Request::formData() const {
   if (hasFormData() && mFormData.empty()) {
     std::istringstream iss(content());
     std::string entry;
@@ -784,25 +630,18 @@ HttpServer::Request::formData() const
   return mFormData;
 }
 
-int
-HttpServer::Request::contentLength() const
-{
+int HttpServer::Request::contentLength() const {
   return mHeaders.hasKey(HTTP_HEADER_CONTENT_LENGTH)
-           ? mHeaders.getNumber(HTTP_HEADER_CONTENT_LENGTH)
-           : -1;
+             ? mHeaders.getNumber(HTTP_HEADER_CONTENT_LENGTH)
+             : -1;
 }
 
-std::ostream&
-HttpServer::Request::print(std::ostream& os) const
-{
+std::ostream& HttpServer::Request::print(std::ostream& os) const {
   os << mMethod << " " << mUri << " " << mProtocol << "\n";
-  for (const auto& header : mHeaders)
-    os << header.first << ": " << header.second << "\n";
+  for (const auto& header : mHeaders) os << header.first << ": " << header.second << "\n";
   return os;
 }
 
-const std::string&
-HttpServer::Request::header(const std::string& key) const
-{
+const std::string& HttpServer::Request::header(const std::string& key) const {
   return mHeaders[ctolower(ctrim(key))];
 }

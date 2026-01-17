@@ -17,34 +17,30 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "optionsfile.h"
-#include "scanner.h"
+
 #include <fstream>
 #include <regex>
 #include <sstream>
 
-OptionsFile::OptionsFile(const std::string& fileName)
-  : mFileName(fileName)
-{
+#include "scanner.h"
+
+OptionsFile::OptionsFile(const std::string& fileName) : mFileName(fileName) {
   std::ifstream file(fileName);
   if (file.is_open())
-    std::clog << "reading device options from '" << fileName << "'"
-              << std::endl;
+    std::clog << "reading device options from '" << fileName << "'" << std::endl;
   else
     std::clog << "no device options at '" << fileName << "'" << std::endl;
 
   std::string line;
   RawOptions* pDeviceSection = nullptr;
   while (std::getline(file >> std::ws, line)) {
-
-    if (line.empty() || line.front() == '#')
-      continue;
+    if (line.empty() || line.front() == '#') continue;
 
     std::istringstream iss(line);
     std::string name, value;
     iss >> name;
     std::getline(iss >> std::ws, value);
-    while (!value.empty() && std::isspace(value.back()))
-      value.resize(value.length() - 1);
+    while (!value.empty() && std::isspace(value.back())) value.resize(value.length() - 1);
     if (name == "device") {
       mDeviceOptions.push_back(std::make_pair(value, RawOptions()));
       pDeviceSection = &mDeviceOptions.back().second;
@@ -57,36 +53,27 @@ OptionsFile::OptionsFile(const std::string& fileName)
 
 OptionsFile::~OptionsFile() {}
 
-std::string
-OptionsFile::path() const
-{
+std::string OptionsFile::path() const {
   size_t pos = mFileName.rfind('/');
-  if (pos == std::string::npos)
-    return "";
+  if (pos == std::string::npos) return "";
   return mFileName.substr(0, pos + 1);
 }
 
-OptionsFile::Options
-OptionsFile::scannerOptions(const Scanner* pScanner) const
-{
+OptionsFile::Options OptionsFile::scannerOptions(const Scanner* pScanner) const {
   auto rawOptions = mGlobalOptions;
   for (const auto& section : mDeviceOptions) {
     std::regex r(section.first);
     bool match = false;
     if (std::regex_match(pScanner->saneName(), r)) {
-      std::clog << mFileName << ": regex '" << section.first
-                << "' matches device name '" << pScanner->saneName() << "'"
-                << std::endl;
+      std::clog << mFileName << ": regex '" << section.first << "' matches device name '"
+                << pScanner->saneName() << "'" << std::endl;
       match = true;
     } else if (std::regex_match(pScanner->makeAndModel(), r)) {
-      std::clog << mFileName << ": regex '" << section.first
-                << "' matches device make and model '"
+      std::clog << mFileName << ": regex '" << section.first << "' matches device make and model '"
                 << pScanner->makeAndModel() << "'" << std::endl;
       match = true;
     }
-    if (match)
-      rawOptions.insert(
-        rawOptions.end(), section.second.begin(), section.second.end());
+    if (match) rawOptions.insert(rawOptions.end(), section.second.begin(), section.second.end());
   }
   OptionsFile::Options processedOptions;
   for (const auto& option : rawOptions) {
@@ -94,8 +81,7 @@ OptionsFile::scannerOptions(const Scanner* pScanner) const
       processedOptions.icon = option.second;
       if (processedOptions.icon.find('/') != 0)
         processedOptions.icon = this->path() + processedOptions.icon;
-    }
-    else if (option.first == "note" || option.first == "location")
+    } else if (option.first == "note" || option.first == "location")
       processedOptions.note = option.second;
     else if (option.first == "gray-gamma")
       processedOptions.gray_gamma = ::atof(option.second.c_str());

@@ -19,15 +19,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "server.h"
 #include "web/webpage.h"
 
-class MainPage : public WebPage
-{
-public:
+class MainPage : public WebPage {
+ public:
   explicit MainPage(const ScannerList&, bool resetoption, bool discloseversion);
 
-protected:
+ protected:
   void onRender() override;
 
-private:
+ private:
   const ScannerList& mScanners;
   bool mResetoption, mDiscloseversion;
 };

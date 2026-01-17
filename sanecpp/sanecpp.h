@@ -19,58 +19,49 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef SANE_CPP_H
 #define SANE_CPP_H
 
+#include <sane/sane.h>
+
 #include <iostream>
 #include <map>
 #include <memory>
-#include <sane/sane.h>
 #include <string>
 #include <vector>
 
 namespace sanecpp {
 
 // string/number conversions using the C locale
-double
-strtod_c(const std::string&);
-std::string
-dtostr_c(double);
+double strtod_c(const std::string&);
+std::string dtostr_c(double);
 
 // sanecpp::log.rdbuf(std::cerr.rdbuf());
 // will enable logging to stderr
 extern std::ostream log;
 
-struct init
-{
-    init();
-    ~init();
+struct init {
+  init();
+  ~init();
 };
 
-struct device_info
-{
+struct device_info {
   std::string name, vendor, model, type;
 };
-std::vector<device_info>
-enumerate_devices(bool localonly = true);
+std::vector<device_info> enumerate_devices(bool localonly = true);
 
 typedef std::shared_ptr<void> device_handle;
 
-device_handle
-open(const std::string&, SANE_Status* = nullptr);
-device_handle
-open(const device_info&, SANE_Status* = nullptr);
+device_handle open(const std::string&, SANE_Status* = nullptr);
+device_handle open(const device_info&, SANE_Status* = nullptr);
 
-std::ostream&
-print(std::ostream&, SANE_Status);
-std::ostream&
-print(std::ostream&, SANE_Unit);
+std::ostream& print(std::ostream&, SANE_Status);
+std::ostream& print(std::ostream&, SANE_Unit);
 
 class option_set;
 
-class option
-{
-private:
+class option {
+ private:
   option(option_set*, const SANE_Option_Descriptor*, SANE_Int);
 
-public:
+ public:
   option();
 
   option& operator=(const std::string&);
@@ -94,10 +85,7 @@ public:
   std::string value(int = 0) const;
 
   bool set_string_value(int index, const std::string& value);
-  bool set_string_value(const std::string& value)
-  {
-    return set_string_value(0, value);
-  }
+  bool set_string_value(const std::string& value) { return set_string_value(0, value); }
   std::string string_value(int index = 0) const;
   std::vector<std::string> allowed_string_values() const;
 
@@ -111,19 +99,18 @@ public:
   double quant() const;
   SANE_Unit unit() const;
 
-private:
+ private:
   friend class option_set;
   option_set* m_set;
   const SANE_Option_Descriptor* m_desc;
   SANE_Int m_index;
 };
 
-class option_set
-{
+class option_set {
   option_set(const option_set&) = delete;
   option_set& operator=(const option_set&) = delete;
 
-public:
+ public:
   option_set();
   explicit option_set(device_handle);
 
@@ -147,16 +134,15 @@ public:
   const_iterator begin() const { return m_options.begin(); }
   const_iterator end() const { return m_options.end(); }
 
-private:
+ private:
   friend class option;
   device_handle m_device;
   std::map<std::string, option> m_options;
   static option s_nulloption;
 };
 
-class session
-{
-public:
+class session {
+ public:
   explicit session(const std::string& devicename);
   explicit session(device_handle);
   ~session();
@@ -172,7 +158,7 @@ public:
   session& read(std::vector<char>&);
   const session& dump_options() const;
 
-private:
+ private:
   void init();
 
   device_handle m_device;
@@ -181,24 +167,18 @@ private:
   SANE_Parameters m_parameters;
 };
 
-} // namespace sanecpp
+}  // namespace sanecpp
 
-inline std::ostream&
-operator<<(std::ostream& os, SANE_Status status)
-{
+inline std::ostream& operator<<(std::ostream& os, SANE_Status status) {
   return sanecpp::print(os, status);
 }
 
-inline std::ostream&
-operator<<(std::ostream& os, SANE_Unit unit)
-{
+inline std::ostream& operator<<(std::ostream& os, SANE_Unit unit) {
   return sanecpp::print(os, unit);
 }
 
-inline std::ostream&
-operator<<(std::ostream& os, const sanecpp::option_set& opt)
-{
+inline std::ostream& operator<<(std::ostream& os, const sanecpp::option_set& opt) {
   return opt.print(os);
 }
 
-#endif // SANE_CPP_H
+#endif  // SANE_CPP_H

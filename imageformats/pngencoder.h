@@ -21,20 +21,19 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "imageencoder.h"
 
-class PngEncoder : public ImageEncoder
-{
-public:
+class PngEncoder : public ImageEncoder {
+ public:
   PngEncoder();
   ~PngEncoder();
 
-protected:
+ protected:
   void onImageBegin() override;
   void onImageEnd() override;
   void onWriteLine(const void*) override;
 
-private:
+ private:
   struct Private;
   Private* p;
 };
 
-#endif // PNGENCODER_H
+#endif  // PNGENCODER_H

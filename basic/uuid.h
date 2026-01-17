@@ -22,13 +22,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <sstream>
 #include <string>
 
-class Uuid
-{
-public:
+class Uuid {
+ public:
   Uuid();
-  template<typename... Args>
-  explicit Uuid(Args... args)
-  {
+  template <typename... Args>
+  explicit Uuid(Args... args) {
     initFromString(makeString(args...));
   }
   static Uuid Random();
@@ -40,29 +38,23 @@ public:
   char* data();
   const char* data() const;
 
-private:
+ private:
   void initFromString(const std::string&);
   static std::string makeString(const std::string& s) { return s; }
-  template<typename T>
-  static std::string makeString(const T& t)
-  {
+  template <typename T>
+  static std::string makeString(const T& t) {
     std::ostringstream oss;
     oss << t;
     return oss.str();
   }
-  template<typename T, typename... Args>
-  static std::string makeString(const T& t, Args... args)
-  {
+  template <typename T, typename... Args>
+  static std::string makeString(const T& t, Args... args) {
     return makeString(t) + makeString(args...);
   }
 
   char mData[16];
 };
 
-inline std::ostream&
-operator<<(std::ostream& os, const Uuid& uuid)
-{
-  return uuid.print(os);
-}
+inline std::ostream& operator<<(std::ostream& os, const Uuid& uuid) { return uuid.print(os); }
 
-#endif // UUID_H
+#endif  // UUID_H

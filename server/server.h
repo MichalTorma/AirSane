@@ -19,52 +19,49 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef SERVER_H
 #define SERVER_H
 
-#include "scanner.h"
-#include "web/httpserver.h"
-#include "zeroconf/mdnspublisher.h"
 #include <fstream>
 #include <memory>
 #include <tuple>
 #include <vector>
 
-struct ScannerEntry
-{
+#include "scanner.h"
+#include "web/httpserver.h"
+#include "zeroconf/mdnspublisher.h"
+
+struct ScannerEntry {
   std::shared_ptr<Scanner> pScanner;
   std::shared_ptr<MdnsPublisher::Service> pService;
 };
 typedef std::vector<ScannerEntry> ScannerList;
 
-class Server : public HttpServer
-{
-public:
+class Server : public HttpServer {
+ public:
   Server(int argc, char** argv);
   ~Server();
   bool run();
 
-protected:
+ protected:
   void onRequest(const Request&, Response&) override;
 
-private:
+ private:
   void chooseUniquePublishedName(Scanner*) const;
   bool publishedNameExists(const std::string&) const;
   bool matchIgnorelist(const sanecpp::device_info&) const;
   std::shared_ptr<MdnsPublisher::Service> buildMdnsService(const Scanner*);
   // must pass ScannerList element by value to achieve protection during
   // request
-  void handleScannerRequest(ScannerList::value_type,
-                            const std::string& uriRemainder,
-                            const HttpServer::Request&,
-                            HttpServer::Response&);
+  void handleScannerRequest(ScannerList::value_type, const std::string& uriRemainder,
+                            const HttpServer::Request&, HttpServer::Response&);
 
   MdnsPublisher mPublisher;
   ScannerList mScanners;
   std::filebuf mLogfile;
-  bool mAnnounce, mWebinterface, mResetoption, mDiscloseversion,
-    mLocalonly, mHotplug, mNetworkhotplug, mRandompaths, mCompatiblepath, mAnnouncesecure;
+  bool mAnnounce, mWebinterface, mResetoption, mDiscloseversion, mLocalonly, mHotplug,
+      mNetworkhotplug, mRandompaths, mCompatiblepath, mAnnouncesecure;
   std::string mOptionsfile, mAccessfile, mIgnorelist, mHostname, mBasePath;
   int mReloadDelay, mJobtimeout, mPurgeinterval;
   float mStartupTimeSeconds;
   bool mDoRun;
 };
 
-#endif // SERVER_H
+#endif  // SERVER_H

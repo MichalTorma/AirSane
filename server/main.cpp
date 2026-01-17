@@ -16,17 +16,15 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "server.h"
 #include <csignal>
 #include <thread>
 
+#include "server.h"
+
 static Server* pServer;
 
-static void
-onSignal(int signal)
-{
-  if (pServer)
-    switch (signal) {
+static void onSignal(int signal) {
+  if (pServer) switch (signal) {
       case SIGHUP:
       case SIGTERM:
         pServer->terminate(signal);
@@ -34,13 +32,11 @@ onSignal(int signal)
     }
 }
 
-int
-main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
   Server server(argc, argv);
   pServer = &server;
   bool ok = true;
-  struct sigaction action = { 0 };
+  struct sigaction action = {0};
   sigemptyset(&action.sa_mask);
   action.sa_handler = &onSignal;
   ::sigaction(SIGTERM, &action, nullptr);

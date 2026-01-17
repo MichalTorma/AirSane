@@ -17,30 +17,22 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "scannerpage.h"
+
 #include "scanjob.h"
 #include "scanner.h"
 
 namespace {
 
-static const struct
-{
+static const struct {
   const char* name;
   int widthPx300dpi, heightPx300dpi;
 } paperSizes[] = {
-  { "A4 Portrait", 2480, 3508 },
-  { "A4 Landscape", 3508, 2480 },
-  { "A5 Portrait", 1748, 2480 },
-  { "A5 Landscape", 2480, 1748 },
-  { "A6 Portrait", 1240, 1748 },
-  { "A6 Landscape", 1748, 1240 },
-  { "US Letter", 2550, 3300 },
-  { "US Legal", 2550, 4200 },
-  { "Full", 0, 0 },
+    {"A4 Portrait", 2480, 3508},  {"A4 Landscape", 3508, 2480}, {"A5 Portrait", 1748, 2480},
+    {"A5 Landscape", 2480, 1748}, {"A6 Portrait", 1240, 1748},  {"A6 Landscape", 1748, 1240},
+    {"US Letter", 2550, 3300},    {"US Legal", 2550, 4200},     {"Full", 0, 0},
 };
 
-std::string
-buildScanJobTicket(const Dictionary& dict)
-{
+std::string buildScanJobTicket(const Dictionary& dict) {
   Dictionary d = dict;
   d.eraseKey("preview");
   d.eraseKey("Resolution");
@@ -50,25 +42,22 @@ buildScanJobTicket(const Dictionary& dict)
   d["XOffset"] = "0";
   d["YOffset"] = "0";
   d["ConcatIfPossible"] = "1";
-  std::string ticket = "<x:ContentRegionUnits>escl:ThreeHundredthsOfInches</"
-                       "x:ContentRegionUnits>\n";
-  for (auto& s : d) // just enough xml syntax for ScanJob to recognize
+  std::string ticket =
+      "<x:ContentRegionUnits>escl:ThreeHundredthsOfInches</"
+      "x:ContentRegionUnits>\n";
+  for (auto& s : d)  // just enough xml syntax for ScanJob to recognize
     ticket += "<x:" + s.first + ">" + s.second + "</x:" + s.first + ">\n";
   return ticket;
 }
 
-}
+}  // namespace
 
-ScannerPage::ScannerPage(Scanner& s)
-  : mScanner(s)
-{
+ScannerPage::ScannerPage(Scanner& s) : mScanner(s) {
   std::string iconUrl = HttpServer::toRelativeUrl(mScanner.iconUrl());
   setFavicon(HttpServer::MIME_TYPE_PNG, iconUrl);
 }
 
-void
-ScannerPage::onRender()
-{
+void ScannerPage::onRender() {
   std::string imageuri, statusinfo;
 
   Dictionary d = request().formData();
@@ -88,10 +77,8 @@ ScannerPage::onRender()
     for (auto& paper : paperSizes)
       if (scandict["PaperSize"] == paper.name) {
         int width = paper.widthPx300dpi, height = paper.heightPx300dpi;
-        if (width == 0)
-          width = mScanner.maxWidthPx300dpi();
-        if (height == 0)
-          height = mScanner.maxHeightPx300dpi();
+        if (width == 0) width = mScanner.maxWidthPx300dpi();
+        if (height == 0) height = mScanner.maxHeightPx300dpi();
         scandict["Width"] = numtostr(width);
         scandict["Height"] = numtostr(height);
         break;
@@ -105,49 +92,40 @@ ScannerPage::onRender()
         response().setHeader(HttpServer::HTTP_HEADER_CONTENT_DISPOSITION,
                              "attachment;filename=\"" + filename + "\"");
         response().setHeader(HttpServer::HTTP_HEADER_CONTENT_TYPE, format);
-        response().setHeader(HttpServer::HTTP_HEADER_TRANSFER_ENCODING,
-                             "chunked");
+        response().setHeader(HttpServer::HTTP_HEADER_TRANSFER_ENCODING, "chunked");
         job->finishTransfer(response().send());
         return;
       } else {
-        statusinfo =
-          "Error: " + job->statusString() + ": " + job->statusReason();
+        statusinfo = "Error: " + job->statusString() + ": " + job->statusReason();
         response().setHeader(HttpServer::HTTP_HEADER_REFRESH, "5; url=/");
       }
     }
-    if (job && preview)
-      imageuri = job->uri() + "/NextDocument";
+    if (job && preview) imageuri = job->uri() + "/NextDocument";
   }
 
   std::string icondef;
   if (!mScanner.iconUrl().empty()) {
     std::string iconUrl = HttpServer::toRelativeUrl(mScanner.iconUrl());
-    icondef = "<img src='" + iconUrl + "'"
-            + " alt='Scanner Icon'"
-            + " style='width:1.2em;height:1.2em;vertical-align:bottom;padding-right:0.3em'"
-            + ">";
+    icondef = "<img src='" + iconUrl + "'" + " alt='Scanner Icon'" +
+              " style='width:1.2em;height:1.2em;vertical-align:bottom;padding-right:0.3em'" + ">";
   }
 
-  if (!title().empty())
-    out() << heading(1).addContent(icondef).addText(title());
+  if (!title().empty()) out() << heading(1).addContent(icondef).addText(title());
 
-  const struct
-  {
+  const struct {
     const char *key, *value;
   } defaults[] = {
-    { "InputSource", "Platen" },
-    { "DocumentFormat", "image/jpeg" },
-    { "Resolution", "300 dpi" },
+      {"InputSource", "Platen"},
+      {"DocumentFormat", "image/jpeg"},
+      {"Resolution", "300 dpi"},
   };
-  for (auto& f : defaults)
-    d.applyDefaultValue(f.key, f.value);
+  for (auto& f : defaults) d.applyDefaultValue(f.key, f.value);
   d.applyDefaultValue("ColorMode", mScanner.colorModes().front());
 
   std::vector<std::string> resolutions;
   resolutions.push_back(numtostr(mScanner.minResDpi()) + " dpi");
-  for (auto r : { 300, 600, 1200 })
-    if (mScanner.maxResDpi() >= r)
-      resolutions.push_back(numtostr(r) + " dpi");
+  for (auto r : {300, 600, 1200})
+    if (mScanner.maxResDpi() >= r) resolutions.push_back(numtostr(r) + " dpi");
 
   std::vector<std::string> papers;
   for (auto& paper : paperSizes)
@@ -162,36 +140,31 @@ ScannerPage::onRender()
 
   std::string note;
   for (const auto& s : mScanner.inputSources())
-      if (s == "Feeder")
-          note = "Choose \"Feeder\" input source and \"PDF\"<br>document type to scan multiple pages.";
+    if (s == "Feeder")
+      note = "Choose \"Feeder\" input source and \"PDF\"<br>document type to scan multiple pages.";
 
-  const struct
-  {
+  const struct {
     const char *name, *label;
     const std::vector<std::string>& options;
   } select[] = {
-    { "DocumentFormat", "Document type", mScanner.documentFormats() },
-    { "ColorMode", "Color mode", mScanner.colorModes() },
-    { "InputSource", "Input source", mScanner.inputSources() },
-    { "PaperSize", "Paper size", papers },
-    { "Resolution", "Resolution", resolutions },
+      {"DocumentFormat", "Document type", mScanner.documentFormats()},
+      {"ColorMode", "Color mode", mScanner.colorModes()},
+      {"InputSource", "Input source", mScanner.inputSources()},
+      {"PaperSize", "Paper size", papers},
+      {"Resolution", "Resolution", resolutions},
   };
   for (auto& s : select)
     out() << "<nobr>"
-          << formSelect()
-               .addOptions(s.options)
-               .setName(s.name)
-               .setLabel(s.label)
-               .setValue(d[s.name])
+          << formSelect().addOptions(s.options).setName(s.name).setLabel(s.label).setValue(
+                 d[s.name])
           << "</nobr>" << br();
   out() << "<div id='note'>" << note << "</div>\n";
   out() << "<div id='status'>" << statusinfo << "</div>\n";
   out() << "</div>\n"
         << "<div id='downloadbtn'>\n"
-        << formInput("submit").setName("download").setValue("Scan and download")
-        << "</div>\n";
-  int imgwidth = 320, imgheight = mScanner.maxHeightPx300dpi() * imgwidth /
-                                  mScanner.maxWidthPx300dpi();
+        << formInput("submit").setName("download").setValue("Scan and download") << "</div>\n";
+  int imgwidth = 320,
+      imgheight = mScanner.maxHeightPx300dpi() * imgwidth / mScanner.maxWidthPx300dpi();
   std::string s = "width:" + numtostr(imgwidth) +
                   "px;"
                   "height:" +
@@ -199,19 +172,18 @@ ScannerPage::onRender()
   out() << "<div id='previewpane'>"
         << "<div id='previewimg' style='" << s << "'>\n";
   if (imageuri.empty())
-    out()
-      << element("span").setAttribute("id", "previewlabel").addText("Preview");
+    out() << element("span").setAttribute("id", "previewlabel").addText("Preview");
   else
     out() << element("img")
-               .setAttribute("src", imageuri)
-               .setAttribute("alt", "Preview")
-               .setAttribute("width", imgwidth)
-               .setAttribute("height", imgheight);
+                 .setAttribute("src", imageuri)
+                 .setAttribute("alt", "Preview")
+                 .setAttribute("width", imgwidth)
+                 .setAttribute("height", imgheight);
   out() << "</div>\n"
         << formInput("submit")
-             .setName("preview")
-             .setValue("Update preview")
-             .setAttribute("id", "previewbtn")
+               .setName("preview")
+               .setValue("Update preview")
+               .setAttribute("id", "previewbtn")
         << "</div>\n"
         << "</div>\n"
         << "</form>\n";

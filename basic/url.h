@@ -19,12 +19,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef URL_H
 #define URL_H
 
-#include <string>
 #include <iostream>
+#include <string>
 
-class Url
-{
-public:
+class Url {
+ public:
   explicit Url(const std::string&);
 
   const std::string& protocol() const { return mProtocol; }
@@ -36,10 +35,10 @@ public:
 
   std::ostream& print(std::ostream&) const;
 
-private:
+ private:
   std::string mProtocol, mHost, mPort, mUser, mPassword, mPath;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Url& url) { return url.print(os); }
 
-#endif // URL_H
+#endif  // URL_H

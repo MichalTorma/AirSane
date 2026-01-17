@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "dictionary.h"
+
 #include <algorithm>
 #include <limits>
 #include <locale>
@@ -27,93 +28,63 @@ namespace {
 // locale-independent number/string conversion
 std::locale clocale("C");
 
-std::string
-numtostr(double num)
-{
+std::string numtostr(double num) {
   std::ostringstream oss;
   oss.imbue(clocale);
   oss << num;
   return oss.str();
 }
 
-double
-strtonum(const std::string& s)
-{
+double strtonum(const std::string& s) {
   std::istringstream iss(s);
   iss.imbue(clocale);
   double num;
-  if (iss >> num)
-    return num;
+  if (iss >> num) return num;
   return std::numeric_limits<double>::quiet_NaN();
 }
 
 const std::string emptystring;
 
-Dictionary::Storage::iterator
-find(Dictionary::Storage& s, const std::string& key)
-{
-  return std::find_if(
-    s.begin(), s.end(), [key](const Dictionary::Storage::value_type& v) {
-      return v.first == key;
-    });
+Dictionary::Storage::iterator find(Dictionary::Storage& s, const std::string& key) {
+  return std::find_if(s.begin(), s.end(),
+                      [key](const Dictionary::Storage::value_type& v) { return v.first == key; });
 }
 
-Dictionary::Storage::const_iterator
-find(const Dictionary::Storage& s, const std::string& key)
-{
+Dictionary::Storage::const_iterator find(const Dictionary::Storage& s, const std::string& key) {
   return find(const_cast<Dictionary::Storage&>(s), key);
 }
 
-} // namespace
+}  // namespace
 
-bool
-Dictionary::hasKey(const std::string& key) const
-{
+bool Dictionary::hasKey(const std::string& key) const {
   auto i = find(mData, key);
   return i != mData.end();
 }
 
-void
-Dictionary::eraseKey(const std::string& key)
-{
+void Dictionary::eraseKey(const std::string& key) {
   auto i = find(mData, key);
-  if (i != mData.end())
-    mData.erase(i);
+  if (i != mData.end()) mData.erase(i);
 }
 
-const std::string&
-Dictionary::applyDefaultValue(const std::string& key, const std::string& value)
-{
+const std::string& Dictionary::applyDefaultValue(const std::string& key, const std::string& value) {
   auto i = find(mData, key);
-  if (i == mData.end())
-    i = mData.insert(mData.end(), std::make_pair(key, value));
+  if (i == mData.end()) i = mData.insert(mData.end(), std::make_pair(key, value));
   return i->second;
 }
 
-const std::string&
-Dictionary::applyDefaultValue(const std::string& key, double value)
-{
+const std::string& Dictionary::applyDefaultValue(const std::string& key, double value) {
   return applyDefaultValue(key, numtostr(value));
 }
 
-double
-Dictionary::getNumber(const std::string& s) const
-{
-  return strtonum(getString(s));
-}
+double Dictionary::getNumber(const std::string& s) const { return strtonum(getString(s)); }
 
-const std::string&
-Dictionary::getString(const std::string& key) const
-{
+const std::string& Dictionary::getString(const std::string& key) const {
   auto i = find(mData, key);
   return i == mData.end() ? emptystring : i->second;
 }
 
-std::string&
-Dictionary::operator[](const std::string& key)
-{
+std::string& Dictionary::operator[](const std::string& key) {
   auto i = find(mData, key);
-  if (i == mData.end())
-    i = mData.insert(mData.end(), std::make_pair(key, ""));
+  if (i == mData.end()) i = mData.insert(mData.end(), std::make_pair(key, ""));
   return i->second;
 }

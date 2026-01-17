@@ -23,16 +23,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 class Scanner;
 
-class ScannerPage : public WebPage
-{
-public:
+class ScannerPage : public WebPage {
+ public:
   explicit ScannerPage(Scanner&);
 
-protected:
+ protected:
   void onRender() override;
 
-private:
+ private:
   Scanner& mScanner;
 };
 
-#endif // SCANNERPAGE_H
+#endif  // SCANNERPAGE_H

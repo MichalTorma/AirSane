@@ -18,27 +18,28 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "server.h"
 
-#include <cstring>
-#include <cmath>
-#include <csignal>
-#include <ctime>
-#include <cstdint>
-#include <regex>
-#include <sstream>
-#include <iomanip>
 #include <unistd.h>
 
-#include "mainpage.h"
-#include "scannerpage.h"
-#include "optionsfile.h"
-#include "scanjob.h"
-#include "scanner.h"
-#include "purgethread.h"
+#include <cmath>
+#include <csignal>
+#include <cstdint>
+#include <cstring>
+#include <ctime>
+#include <iomanip>
+#include <regex>
+#include <sstream>
+
 #include "basic/url.h"
 #include "basic/uuid.h"
+#include "mainpage.h"
+#include "optionsfile.h"
+#include "purgethread.h"
+#include "scanjob.h"
+#include "scanner.h"
+#include "scannerpage.h"
+#include "web/accessfile.h"
 #include "zeroconf/hotplugnotifier.h"
 #include "zeroconf/networkhotplugnotifier.h"
-#include "web/accessfile.h"
 
 extern const char* GIT_COMMIT_HASH;
 extern const char* GIT_BRANCH;
@@ -47,22 +48,17 @@ extern const char* BUILD_TIME_STAMP;
 
 namespace {
 
-std::string hostname()
-{
+std::string hostname() {
   char buf[256];
   ::gethostname(buf, sizeof(buf));
   return buf;
 }
 
-struct Notifier : HotplugNotifier
-{
+struct Notifier : HotplugNotifier {
   Server& server;
   int reloadDelay;
-  Notifier(Server& s, int delay)
-    : server(s), reloadDelay(delay)
-  {}
-  void onHotplugEvent(Event ev) override
-  {
+  Notifier(Server& s, int delay) : server(s), reloadDelay(delay) {}
+  void onHotplugEvent(Event ev) override {
     switch (ev) {
       case deviceArrived:
       case deviceLeft:
@@ -76,15 +72,11 @@ struct Notifier : HotplugNotifier
   }
 };
 
-struct NetworkNotifier : NetworkHotplugNotifier
-{
+struct NetworkNotifier : NetworkHotplugNotifier {
   Server& server;
   int reloadDelay;
-  NetworkNotifier(Server& s, int delay)
-    : server(s), reloadDelay(delay)
-  {}
-  void onHotplugEvent(Event ev) override
-  {
+  NetworkNotifier(Server& s, int delay) : server(s), reloadDelay(delay) {}
+  void onHotplugEvent(Event ev) override {
     switch (ev) {
       case addressArrived:
       case addressLeft:
@@ -99,86 +91,79 @@ struct NetworkNotifier : NetworkHotplugNotifier
   }
 };
 
-bool
-clientIsAirscan(const HttpServer::Request& req)
-{
-  return req.header(HttpServer::HTTP_HEADER_USER_AGENT)
-           .find("AirScanScanner") != std::string::npos;
+bool clientIsAirscan(const HttpServer::Request& req) {
+  return req.header(HttpServer::HTTP_HEADER_USER_AGENT).find("AirScanScanner") != std::string::npos;
 }
 
-} // namespace
+}  // namespace
 
 Server::Server(int argc, char** argv)
-  : mAnnounce(true)
-  , mWebinterface(true)
-  , mResetoption(false)
-  , mDiscloseversion(true)
-  , mLocalonly(true)
-  , mHotplug(true)
-  , mNetworkhotplug(true)
-  , mRandompaths(false)
-  , mCompatiblepath(false)
-  , mReloadDelay(1)
-  , mJobtimeout(0)
-  , mPurgeinterval(0)
-  , mStartupTimeSeconds(0)
-  , mDoRun(true)
-{
-  std::string port, interface, unixsocket, accesslog, hotplug, networkhotplug,
-     announce, webinterface, resetoption, discloseversion, localonly, optionsfile,
-     ignorelist, accessfile, randompaths, compatiblepath, debug, announcesecure,
-     reloaddelay, jobtimeout, purgeinterval, announcebaseurl;
-  struct
-  {
+    : mAnnounce(true),
+      mWebinterface(true),
+      mResetoption(false),
+      mDiscloseversion(true),
+      mLocalonly(true),
+      mHotplug(true),
+      mNetworkhotplug(true),
+      mRandompaths(false),
+      mCompatiblepath(false),
+      mReloadDelay(1),
+      mJobtimeout(0),
+      mPurgeinterval(0),
+      mStartupTimeSeconds(0),
+      mDoRun(true) {
+  std::string port, interface, unixsocket, accesslog, hotplug, networkhotplug, announce,
+      webinterface, resetoption, discloseversion, localonly, optionsfile, ignorelist, accessfile,
+      randompaths, compatiblepath, debug, announcesecure, reloaddelay, jobtimeout, purgeinterval,
+      announcebaseurl;
+  struct {
     const std::string name, def, info;
     std::string& value;
   } options[] = {
-    { "listen-port", "8090", "listening port", port },
-    { "interface", "", "listen on named interface only", interface },
-    { "unix-socket", "", "listen on named unix socket", unixsocket },
-    { "access-log", "", "HTTP access log, - for stdout", accesslog },
-    { "hotplug", "true", "repeat scanner search on hotplug event", hotplug },
-    { "reload-delay", "1", "how long a hotplug reload is delayed (seconds)", reloaddelay },
-    { "network-hotplug", "true", "restart server on network change", networkhotplug },
-    { "mdns-announce", "true", "announce scanners via mDNS", announce },
-    { "announce-secure", "false", "announce secure connection", announcesecure },
-    { "announce-base-url", "", "optional base url, overrides listen-port and announce-secure options", announcebaseurl },
-    { "web-interface", "true", "enable web interface", webinterface },
-    { "reset-option", "false", "allow server reset from web interface", resetoption },
-    { "disclose-version", "true", "disclose version information in web interface", discloseversion },
-    { "random-paths", "false", "prepend a random uuid to scanner paths", randompaths },
-    { "compatible-path", "true", "use /eSCL as path for first scanner", compatiblepath },
-    { "local-scanners-only", "false", "ignore SANE network scanners", localonly },
-    { "job-timeout", "120", "timeout for idle jobs (seconds)", jobtimeout },
-    { "purge-interval", "5", "how often job lists are purged (seconds)", purgeinterval },
-    { "options-file",
+      {"listen-port", "8090", "listening port", port},
+      {"interface", "", "listen on named interface only", interface},
+      {"unix-socket", "", "listen on named unix socket", unixsocket},
+      {"access-log", "", "HTTP access log, - for stdout", accesslog},
+      {"hotplug", "true", "repeat scanner search on hotplug event", hotplug},
+      {"reload-delay", "1", "how long a hotplug reload is delayed (seconds)", reloaddelay},
+      {"network-hotplug", "true", "restart server on network change", networkhotplug},
+      {"mdns-announce", "true", "announce scanners via mDNS", announce},
+      {"announce-secure", "false", "announce secure connection", announcesecure},
+      {"announce-base-url", "",
+       "optional base url, overrides listen-port and announce-secure options", announcebaseurl},
+      {"web-interface", "true", "enable web interface", webinterface},
+      {"reset-option", "false", "allow server reset from web interface", resetoption},
+      {"disclose-version", "true", "disclose version information in web interface",
+       discloseversion},
+      {"random-paths", "false", "prepend a random uuid to scanner paths", randompaths},
+      {"compatible-path", "true", "use /eSCL as path for first scanner", compatiblepath},
+      {"local-scanners-only", "false", "ignore SANE network scanners", localonly},
+      {"job-timeout", "120", "timeout for idle jobs (seconds)", jobtimeout},
+      {"purge-interval", "5", "how often job lists are purged (seconds)", purgeinterval},
+      {"options-file",
 #ifdef __FreeBSD__
-      "/usr/local/etc/airsane/options.conf",
+       "/usr/local/etc/airsane/options.conf",
 #else
-      "/etc/airsane/options.conf",
+       "/etc/airsane/options.conf",
 #endif
-      "location of device options file",
-      optionsfile },
-    { "ignore-list",
+       "location of device options file", optionsfile},
+      {"ignore-list",
 #ifdef __FreeBSD__
-      "/usr/local/etc/airsane/ignore.conf",
+       "/usr/local/etc/airsane/ignore.conf",
 #else
-      "/etc/airsane/ignore.conf",
+       "/etc/airsane/ignore.conf",
 #endif
-      "location of device ignore list",
-      ignorelist },
-    { "access-file",
+       "location of device ignore list", ignorelist},
+      {"access-file",
 #ifdef __FreeBSD__
-      "/usr/local/etc/airsane/access.conf",
+       "/usr/local/etc/airsane/access.conf",
 #else
-      "/etc/airsane/access.conf",
+       "/etc/airsane/access.conf",
 #endif
-      "location of access file",
-      accessfile },
-    { "debug", "false", "log debug information to stderr", debug },
+       "location of access file", accessfile},
+      {"debug", "false", "log debug information to stderr", debug},
   };
-  for (auto& opt : options)
-    opt.value = opt.def;
+  for (auto& opt : options) opt.value = opt.def;
   bool help = false;
   for (int i = 1; i < argc; ++i) {
     std::string option = argv[i];
@@ -197,13 +182,11 @@ Server::Server(int argc, char** argv)
     }
     if (!found) {
       help = true;
-      if (option != "--help")
-        std::cerr << "unknown option: " << option << std::endl;
+      if (option != "--help") std::cerr << "unknown option: " << option << std::endl;
     }
   }
 
-  if (debug != "true")
-    std::clog.rdbuf(nullptr);
+  if (debug != "true") std::clog.rdbuf(nullptr);
   sanecpp::log.rdbuf(std::clog.rdbuf());
 
   mHotplug = (hotplug == "true");
@@ -223,11 +206,9 @@ Server::Server(int argc, char** argv)
   Url url(announcebaseurl);
   if (url.protocol() == "http") {
     mAnnouncesecure = false;
-  }
-  else if (url.protocol() == "https") {
+  } else if (url.protocol() == "https") {
     mAnnouncesecure = true;
-  }
-  else if (!url.protocol().empty()){
+  } else if (!url.protocol().empty()) {
     std::cerr << "invalid protocol: " << url.protocol() << std::endl;
     mDoRun = false;
   }
@@ -238,14 +219,12 @@ Server::Server(int argc, char** argv)
   }
   if (mHostname == "%h") {
     mHostname = mPublisher.hostname();
-  }
-  else if (mHostname == "%H") {
+  } else if (mHostname == "%H") {
     mHostname = mPublisher.hostnameFqdn();
   }
 
   mBasePath = url.path();
-  if (!mBasePath.empty() && mBasePath.back() == '/')
-      mBasePath.pop_back();
+  if (!mBasePath.empty() && mBasePath.back() == '/') mBasePath.pop_back();
 
   std::string urlport = url.port();
   if (urlport != "%p" && !urlport.empty()) {
@@ -280,15 +259,13 @@ Server::Server(int argc, char** argv)
   if (help) {
     std::cout << "options, and their defaults, are:\n";
     for (auto& opt : options)
-      std::cout << " --" << opt.name << "=" << opt.def << "\t" << opt.info
-                << "\n";
+      std::cout << " --" << opt.name << "=" << opt.def << "\t" << opt.info << "\n";
     std::cout << " --help\t"
               << "show this help" << std::endl;
     mDoRun = false;
   }
   if (mDoRun) {
-    if (!interface.empty())
-      setInterfaceName(interface);
+    if (!interface.empty()) setInterfaceName(interface);
     setPort(port_);
     setUnixSocket(unixsocket);
     if (accesslog.empty())
@@ -296,85 +273,73 @@ Server::Server(int argc, char** argv)
     else if (accesslog != "-")
       std::cout.rdbuf(mLogfile.open(accesslog, std::ios::app));
 
-    std::clog << "git commit: " << GIT_COMMIT_HASH << " (branch " << GIT_BRANCH
-              << ", rev " << GIT_REVISION_NUMBER << ")\n"
+    std::clog << "git commit: " << GIT_COMMIT_HASH << " (branch " << GIT_BRANCH << ", rev "
+              << GIT_REVISION_NUMBER << ")\n"
               << "build date: " << BUILD_TIME_STAMP << std::endl;
   }
 }
 
 Server::~Server() {}
 
-bool
-Server::run()
-{
-  if (!mDoRun)
-    return false;
+bool Server::run() {
+  if (!mDoRun) return false;
 
   std::shared_ptr<Notifier> pNotifier;
-  if (mHotplug)
-    pNotifier = std::make_shared<Notifier>(*this, mReloadDelay);
+  if (mHotplug) pNotifier = std::make_shared<Notifier>(*this, mReloadDelay);
 
   std::shared_ptr<NetworkNotifier> pNetworkNotifier;
-  if (mNetworkhotplug)
-    pNetworkNotifier = std::make_shared<NetworkNotifier>(*this, mReloadDelay);
+  if (mNetworkhotplug) pNetworkNotifier = std::make_shared<NetworkNotifier>(*this, mReloadDelay);
 
   bool ok = false, done = false;
   do {
     if (unixSocket().empty()) {
       AccessFile accessfile(mAccessfile);
       if (!accessfile.errors().empty()) {
-        std::clog << "errors in accessfile:\n" << accessfile.errors() << " terminating" << std::endl;
+        std::clog << "errors in accessfile:\n"
+                  << accessfile.errors() << " terminating" << std::endl;
         return false;
       }
       HttpServer::applyAccessFile(accessfile);
     }
 
-    struct timespec t = { 0 };
+    struct timespec t = {0};
     ::clock_gettime(CLOCK_MONOTONIC, &t);
     float t0 = 1.0 * t.tv_sec + 1e-9 * t.tv_nsec;
     std::clog << "start time is " << std::fixed << std::setprecision(2) << t0 << std::endl;
 
     OptionsFile optionsfile(mOptionsfile);
-    std::clog << "enumerating " << (mLocalonly ? "local " : " ") << "devices..."
-              << std::endl;
+    std::clog << "enumerating " << (mLocalonly ? "local " : " ") << "devices..." << std::endl;
     std::string pathPrefix = "/";
-    if (mRandompaths)
-      pathPrefix += Uuid::Random().toString() + "/";
+    if (mRandompaths) pathPrefix += Uuid::Random().toString() + "/";
 
-    sanecpp::init saneinit; // init/deinit after every iteration of the do/while loop
+    sanecpp::init saneinit;  // init/deinit after every iteration of the do/while loop
 
     auto scanners = sanecpp::enumerate_devices(mLocalonly);
     int scannerCount = 0;
     for (const auto& s : scanners) {
-      std::clog << "found: " << s.name << " (" << s.vendor << " " << s.model
-                << ")" << std::endl;
+      std::clog << "found: " << s.name << " (" << s.vendor << " " << s.model << ")" << std::endl;
       if (matchIgnorelist(s)) {
         std::clog << "ignoring " << s.name << std::endl;
         continue;
       }
       auto pScanner = std::make_shared<Scanner>(s);
-      std::clog << "stable unique name: " << pScanner->stableUniqueName()
-                << std::endl;
+      std::clog << "stable unique name: " << pScanner->stableUniqueName() << std::endl;
       std::clog << "uuid: " << pScanner->uuid() << std::endl;
 
       chooseUniquePublishedName(pScanner.get());
 
       if (!pScanner->initWithOptions(optionsfile)) {
         std::clog << "error: " << pScanner->error() << std::endl;
-      }
-      else {
+      } else {
         if (scannerCount++ == 0 && mCompatiblepath)
-            pScanner->setUri("/eSCL");
+          pScanner->setUri("/eSCL");
         else
-            pScanner->setUri(pathPrefix + pScanner->uuid());
+          pScanner->setUri(pathPrefix + pScanner->uuid());
         std::ostringstream url;
         url << "http";
-        if (mAnnouncesecure)
-          url << "s";
-        url << "://" << mHostname << ":" << port() << mBasePath
-            << pScanner->uri();
-        if (mWebinterface)
-          pScanner->setAdminUrl(url.str());
+        if (mAnnouncesecure) url << "s";
+        url << "://" << mHostname << ":" << port() << mBasePath << pScanner->uri();
+        if (mWebinterface) pScanner->setAdminUrl(url.str());
         if (!pScanner->iconFile().empty()) {
           url << "/ScannerIcon";
           pScanner->setIconUrl(url.str());
@@ -386,13 +351,12 @@ Server::run()
           pService->setPort(port());
           if (pService->announce()) {
             std::clog << "published as '" << pService->name() << "'" << std::endl;
-              // may have changed due to collision
+            // may have changed due to collision
             pScanner->setPublishedName(pService->name());
           } else
             pService.reset();
-          }
-          if (pService && !pScanner->error())
-            mScanners.push_back(ScannerEntry({ pScanner, pService }));
+        }
+        if (pService && !pScanner->error()) mScanners.push_back(ScannerEntry({pScanner, pService}));
       }
     }
 
@@ -420,45 +384,32 @@ Server::run()
   if (ok) {
     std::clog << "server finished ok" << std::endl;
   } else {
-    std::cerr << "server finished with error status " << terminationStatus()
-              << ", last error was " << lastError() << ": "
-              << ::strerror(lastError()) << std::endl;
+    std::cerr << "server finished with error status " << terminationStatus() << ", last error was "
+              << lastError() << ": " << ::strerror(lastError()) << std::endl;
   }
   return ok;
 }
 
-void
-Server::chooseUniquePublishedName(Scanner* pScanner) const
-{
-  std::string baseName = pScanner->publishedName(),
-              ext = "";
+void Server::chooseUniquePublishedName(Scanner* pScanner) const {
+  std::string baseName = pScanner->publishedName(), ext = "";
   int i = 1;
-  while (publishedNameExists(baseName + ext))
-    ext = " (" + std::to_string(++i) + ")";
+  while (publishedNameExists(baseName + ext)) ext = " (" + std::to_string(++i) + ")";
   pScanner->setPublishedName(baseName + ext);
 }
 
-bool
-Server::publishedNameExists(const std::string& name) const
-{
+bool Server::publishedNameExists(const std::string& name) const {
   for (const auto& entry : mScanners)
-    if (entry.pScanner->publishedName() == name)
-      return true;
+    if (entry.pScanner->publishedName() == name) return true;
   return false;
 }
 
-bool
-Server::matchIgnorelist(const sanecpp::device_info& info) const
-{
+bool Server::matchIgnorelist(const sanecpp::device_info& info) const {
   std::ifstream file(mIgnorelist);
   std::string line;
   while (std::getline(file, line)) {
-    if (line.find('#') == 0)
-      continue;
-    if (line.find("//") == 0)
-      continue;
-    if (line.find(' ') == 0)
-      continue;
+    if (line.find('#') == 0) continue;
+    if (line.find("//") == 0) continue;
+    if (line.find(' ') == 0) continue;
     if (std::regex_match(info.name, std::regex(line))) {
       std::clog << mIgnorelist << ": regex '" << line << "'"
                 << " matches device name '" << info.name << "'" << std::endl;
@@ -468,23 +419,18 @@ Server::matchIgnorelist(const sanecpp::device_info& info) const
   return false;
 }
 
-std::shared_ptr<MdnsPublisher::Service>
-Server::buildMdnsService(const Scanner* pScanner)
-{
+std::shared_ptr<MdnsPublisher::Service> Server::buildMdnsService(const Scanner* pScanner) {
   auto pService = std::make_shared<MdnsPublisher::Service>(&mPublisher);
   std::string type = "_uscan._tcp";
-  if (mAnnouncesecure)
-    type = "_uscans._tcp";
+  if (mAnnouncesecure) type = "_uscans._tcp";
   pService->setType(type);
   pService->setName(pScanner->publishedName());
   pService->setInterfaceIndex(interfaceIndex());
   pService->setTxt("txtvers", "1");
   pService->setTxt("vers", "2.0");
   std::string s;
-  for (const auto& f : pScanner->documentFormats())
-    s += "," + f;
-  if (!s.empty())
-    pService->setTxt("pdl", s.substr(1));
+  for (const auto& f : pScanner->documentFormats()) s += "," + f;
+  if (!s.empty()) pService->setTxt("pdl", s.substr(1));
   pService->setTxt("ty", pScanner->makeAndModel());
   if (pScanner->note().empty())
     pService->setTxt("note", mHostname);
@@ -492,64 +438,50 @@ Server::buildMdnsService(const Scanner* pScanner)
     pService->setTxt("note", pScanner->note());
   pService->setTxt("uuid", pScanner->uuid());
   s = pScanner->uri();
-  if (!s.empty() && s.front() == '/')
-    s = s.substr(1);
+  if (!s.empty() && s.front() == '/') s = s.substr(1);
   pService->setTxt("rs", s);
   s.clear();
-  for (const auto& cs : pScanner->txtColorSpaces())
-    s += "," + cs;
-  if (!s.empty())
-    pService->setTxt("cs", s.substr(1));
+  for (const auto& cs : pScanner->txtColorSpaces()) s += "," + cs;
+  if (!s.empty()) pService->setTxt("cs", s.substr(1));
   s.clear();
-  if (pScanner->hasPlaten())
-    s += ",platen";
-  if (pScanner->hasAdf())
-    s += ",adf";
-  if (!s.empty())
-    pService->setTxt("is", s.substr(1));
+  if (pScanner->hasPlaten()) s += ",platen";
+  if (pScanner->hasAdf()) s += ",adf";
+  if (!s.empty()) pService->setTxt("is", s.substr(1));
   pService->setTxt("duplex", pScanner->hasDuplexAdf() ? "T" : "F");
 
-  if (!pScanner->adminUrl().empty())
-    pService->setTxt("adminurl", pScanner->adminUrl());
-  if (!pScanner->iconUrl().empty())
-    pService->setTxt("representation", pScanner->iconUrl());
+  if (!pScanner->adminUrl().empty()) pService->setTxt("adminurl", pScanner->adminUrl());
+  if (!pScanner->iconUrl().empty()) pService->setTxt("representation", pScanner->iconUrl());
 
   return pService;
 }
 
-void
-Server::onRequest(const Request& request, Response& response)
-{
+void Server::onRequest(const Request& request, Response& response) {
   if (mWebinterface) {
-      if (request.uri() == mBasePath + "/") {
-        response.setStatus(HttpServer::HTTP_OK);
-        response.setHeader(HttpServer::HTTP_HEADER_CONTENT_TYPE, "text/html");
-        MainPage(mScanners, mResetoption, mDiscloseversion)
+    if (request.uri() == mBasePath + "/") {
+      response.setStatus(HttpServer::HTTP_OK);
+      response.setHeader(HttpServer::HTTP_HEADER_CONTENT_TYPE, "text/html");
+      MainPage(mScanners, mResetoption, mDiscloseversion)
           .setTitle("AirSane Server on " + mPublisher.hostname())
           .render(request, response);
-      } else if (request.uri() == "/reset" && mResetoption) {
-        response.setStatus(HttpServer::HTTP_OK);
-        response.setHeader(HttpServer::HTTP_HEADER_CONTENT_TYPE, "text/html");
-        std::ostringstream oss;
-        oss << ::ceil(mStartupTimeSeconds) + 1 << "; url=/";
-        response.setHeader(HttpServer::HTTP_HEADER_REFRESH, oss.str());
-        struct : WebPage
-        {
-          void onRender() override
-          {
-            out() << heading(1).addText(title()) << std::endl;
-            out() << paragraph().addText(
-                       "You will be redirected to the main page in a few seconds.")
-                  << std::endl;
-          }
-        } resetpage;
-        resetpage
-          .setTitle("Resetting AirSane Server on " + mPublisher.hostname() + " ...")
+    } else if (request.uri() == "/reset" && mResetoption) {
+      response.setStatus(HttpServer::HTTP_OK);
+      response.setHeader(HttpServer::HTTP_HEADER_CONTENT_TYPE, "text/html");
+      std::ostringstream oss;
+      oss << ::ceil(mStartupTimeSeconds) + 1 << "; url=/";
+      response.setHeader(HttpServer::HTTP_HEADER_REFRESH, oss.str());
+      struct : WebPage {
+        void onRender() override {
+          out() << heading(1).addText(title()) << std::endl;
+          out() << paragraph().addText("You will be redirected to the main page in a few seconds.")
+                << std::endl;
+        }
+      } resetpage;
+      resetpage.setTitle("Resetting AirSane Server on " + mPublisher.hostname() + " ...")
           .render(request, response);
-        this->terminate(SIGHUP);
-      }
+      this->terminate(SIGHUP);
+    }
   }
-  for (auto entry : mScanners) {// copy of entry is intended to protect scanner object
+  for (auto entry : mScanners) {  // copy of entry is intended to protect scanner object
     if (request.uri().find(mBasePath + entry.pScanner->uri()) == 0) {
       std::string remainder = request.uri().substr((mBasePath + entry.pScanner->uri()).length());
       handleScannerRequest(entry, remainder, request, response);
@@ -559,26 +491,24 @@ Server::onRequest(const Request& request, Response& response)
   HttpServer::onRequest(request, response);
 }
 
-void
-Server::handleScannerRequest(ScannerList::value_type entry, const std::string& partialUri, const HttpServer::Request& request, HttpServer::Response& response)
-{
+void Server::handleScannerRequest(ScannerList::value_type entry, const std::string& partialUri,
+                                  const HttpServer::Request& request,
+                                  HttpServer::Response& response) {
   if ((partialUri.empty() || partialUri == "/") && mWebinterface) {
     response.setStatus(HttpServer::HTTP_OK);
     response.setHeader(HttpServer::HTTP_HEADER_CONTENT_TYPE, "text/html");
     ScannerPage(*entry.pScanner.get())
-      .setTitle(entry.pScanner->publishedName() + " on " + mPublisher.hostname())
-      .render(request, response);
+        .setTitle(entry.pScanner->publishedName() + " on " + mPublisher.hostname())
+        .render(request, response);
     return;
   }
   if (partialUri == "/ScannerIcon" && request.method() == HttpServer::HTTP_GET) {
     std::ifstream file(entry.pScanner->iconFile());
     if (file.is_open()) {
-      response.setHeader(HttpServer::HTTP_HEADER_CONTENT_TYPE,
-                         HttpServer::MIME_TYPE_PNG);
+      response.setHeader(HttpServer::HTTP_HEADER_CONTENT_TYPE, HttpServer::MIME_TYPE_PNG);
       response.send() << file.rdbuf() << std::flush;
     } else {
-      std::clog << "could not open " << entry.pScanner->iconFile()
-                << " for reading" << std::endl;
+      std::clog << "could not open " << entry.pScanner->iconFile() << " for reading" << std::endl;
       response.setStatus(HttpServer::HTTP_NOT_FOUND);
       response.send();
     }
@@ -599,8 +529,8 @@ Server::handleScannerRequest(ScannerList::value_type entry, const std::string& p
   static const std::string ScanJobsDir = "/ScanJobs";
   if (partialUri == ScanJobsDir && request.method() == HttpServer::HTTP_POST) {
     bool autoselectFormat = clientIsAirscan(request);
-    std::shared_ptr<ScanJob> job = entry.pScanner->createJobFromScanSettingsXml(
-        request.content(), autoselectFormat);
+    std::shared_ptr<ScanJob> job =
+        entry.pScanner->createJobFromScanSettingsXml(request.content(), autoselectFormat);
     if (job) {
       response.setStatus(HttpServer::HTTP_CREATED);
       response.setHeader(HttpServer::HTTP_HEADER_LOCATION, job->uri());

@@ -18,26 +18,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef WORKER_THREAD_H
 #define WORKER_THREAD_H
 
-class WorkerThread
-{
-public:
+class WorkerThread {
+ public:
   WorkerThread();
   ~WorkerThread();
 
   WorkerThread(const WorkerThread&) = delete;
   WorkerThread& operator=(const WorkerThread&) = delete;
 
-  struct Callable
-  {
+  struct Callable {
     virtual ~Callable() {}
     virtual void onCall() = 0;
   };
   void executeSynchronously(Callable&);
 
-private:
+ private:
   struct Private;
   Private* p;
 };
 
-
-#endif // WORKER_THREAD_H
+#endif  // WORKER_THREAD_H

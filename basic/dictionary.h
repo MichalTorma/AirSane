@@ -22,33 +22,28 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <string>
 #include <vector>
 
-class Dictionary
-{
-public:
+class Dictionary {
+ public:
   typedef std::vector<std::pair<std::string, std::string>> Storage;
 
   bool hasKey(const std::string& key) const;
   void eraseKey(const std::string& key);
 
-  const std::string& applyDefaultValue(const std::string& key,
-                                       const std::string& value);
+  const std::string& applyDefaultValue(const std::string& key, const std::string& value);
   const std::string& applyDefaultValue(const std::string& key, double value);
 
   double getNumber(const std::string& key) const;
   const std::string& getString(const std::string& key) const;
 
-  const std::string& operator[](const std::string& key) const
-  {
-    return getString(key);
-  }
+  const std::string& operator[](const std::string& key) const { return getString(key); }
   std::string& operator[](const std::string& key);
 
   Storage::const_iterator begin() const { return mData.begin(); }
   Storage::const_iterator end() const { return mData.end(); }
   bool empty() const { return mData.empty(); }
 
-private:
+ private:
   Storage mData;
 };
 
-#endif // DICTIONARY_H
+#endif  // DICTIONARY_H

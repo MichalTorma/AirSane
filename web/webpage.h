@@ -19,23 +19,22 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef WEBPAGE_H
 #define WEBPAGE_H
 
-#include "basic/dictionary.h"
-#include "httpserver.h"
 #include <iostream>
 #include <string>
 #include <vector>
 
-class WebPage
-{
+#include "basic/dictionary.h"
+#include "httpserver.h"
+
+class WebPage {
   WebPage(const WebPage&) = delete;
   WebPage& operator=(const WebPage&) = delete;
 
-public:
+ public:
   WebPage();
   virtual ~WebPage() {}
 
-  WebPage& setTitle(const std::string& s)
-  {
+  WebPage& setTitle(const std::string& s) {
     mTitle = s;
     return *this;
   }
@@ -53,136 +52,95 @@ public:
   static std::string htmlEscape(const std::string&);
   static std::string numtostr(double);
 
-  class element
-  {
-  public:
-    explicit element(const std::string& tag)
-      : mTag(tag)
-    {}
+  class element {
+   public:
+    explicit element(const std::string& tag) : mTag(tag) {}
     virtual ~element() {}
     element& addText(const std::string& s) { return addContent(htmlEscape(s)); }
     element& addText(double d) { return addText(numtostr(d)); }
-    element& addContent(const std::string& s)
-    {
+    element& addContent(const std::string& s) {
       mText += s;
       return *this;
     }
     element& setAttribute(const std::string&, const std::string&);
-    element& setAttribute(const std::string& s, double d)
-    {
-      return setAttribute(s, numtostr(d));
-    }
+    element& setAttribute(const std::string& s, double d) { return setAttribute(s, numtostr(d)); }
 
     const Dictionary& attributes() const { return mAttributes; }
 
     virtual std::string toString() const;
 
-  private:
+   private:
     Dictionary mAttributes;
     std::string mTag, mText;
   };
-  struct br : element
-  {
-    br()
-      : element("br")
-    {}
+  struct br : element {
+    br() : element("br") {}
     std::string toString() const override { return element::toString() + "\n"; }
   };
-  struct heading : element
-  {
-    explicit heading(int level)
-      : element("h" + numtostr(level))
-    {}
+  struct heading : element {
+    explicit heading(int level) : element("h" + numtostr(level)) {}
   };
-  struct paragraph : element
-  {
-    paragraph()
-      : element("p")
-    {}
+  struct paragraph : element {
+    paragraph() : element("p") {}
     std::string toString() const override { return element::toString() + "\n"; }
   };
-  struct list : element
-  {
-    list()
-      : element("ul")
-    {}
+  struct list : element {
+    list() : element("ul") {}
     list& addItem(const std::string&);
     list& addItem(const element&);
   };
-  struct anchor : element
-  {
-    explicit anchor(const std::string& href = "")
-      : element("a")
-    {
-      setAttribute("href", href);
-    }
+  struct anchor : element {
+    explicit anchor(const std::string& href = "") : element("a") { setAttribute("href", href); }
   };
-  struct formField : element
-  {
-    explicit formField(const std::string& tag)
-      : element(tag)
-    {}
-    formField& setName(const std::string& s)
-    {
+  struct formField : element {
+    explicit formField(const std::string& tag) : element(tag) {}
+    formField& setName(const std::string& s) {
       setAttribute("name", s);
       return *this;
     }
-    formField& setValue(const std::string& s)
-    {
+    formField& setValue(const std::string& s) {
       setAttribute("value", s);
       return *this;
     }
-    formField& setLabel(const std::string& s)
-    {
+    formField& setLabel(const std::string& s) {
       mLabel = s;
       return *this;
     }
     std::string toString() const override;
     std::string labelHtml() const;
 
-  private:
+   private:
     std::string mLabel;
   };
-  struct formInput : formField
-  {
-    explicit formInput(const std::string& type)
-      : formField("input")
-    {
-      setAttribute("type", type);
-    }
+  struct formInput : formField {
+    explicit formInput(const std::string& type) : formField("input") { setAttribute("type", type); }
   };
-  struct formSelect : formField
-  {
-    formSelect()
-      : formField("select")
-    {}
-    formSelect& addOption(const std::string& value,
-                          const std::string& text = "");
+  struct formSelect : formField {
+    formSelect() : formField("select") {}
+    formSelect& addOption(const std::string& value, const std::string& text = "");
     formSelect& addOptions(const Dictionary&);
     formSelect& addOptions(const std::vector<std::string>&);
     std::string toString() const override;
 
-  private:
+   private:
     Dictionary mOptions;
   };
 
-protected:
+ protected:
   virtual void onRender() = 0;
   std::ostream& out() const { return *mpOut; }
   const HttpServer::Request& request() const { return *mpRequest; }
   HttpServer::Response& response() const { return *mpResponse; }
 
-private:
+ private:
   std::string mTitle, mStyle, mFaviconType, mFaviconUrl;
   std::ostream* mpOut;
   const HttpServer::Request* mpRequest;
   HttpServer::Response* mpResponse;
 };
 
-inline std::ostream&
-operator<<(std::ostream& os, const WebPage::element& el)
-{
+inline std::ostream& operator<<(std::ostream& os, const WebPage::element& el) {
   return os << el.toString();
 }
 
-#endif // WEBPAGE_H
+#endif  // WEBPAGE_H

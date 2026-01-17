@@ -17,9 +17,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "jpegencoder.h"
-#include <cstring>
+
 #include <jerror.h>
 #include <jpeglib.h>
+
+#include <cstring>
 #include <stdexcept>
 #include <vector>
 
@@ -31,56 +33,46 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <endian.h>
 #endif
 
-static_assert(BITS_IN_JSAMPLE == 8,
-              "libjpeg must have been compiled with BITS_IN_JSAMPLE = 8");
+static_assert(BITS_IN_JSAMPLE == 8, "libjpeg must have been compiled with BITS_IN_JSAMPLE = 8");
 
 namespace {
 
-struct OstreamDestinationMgr : ::jpeg_destination_mgr
-{
+struct OstreamDestinationMgr : ::jpeg_destination_mgr {
   JOCTET buffer[4096];
   std::ostream* os;
 
-  static void init_destination_(::jpeg_compress_struct* p)
-  {
+  static void init_destination_(::jpeg_compress_struct* p) {
     reinterpret_cast<OstreamDestinationMgr*>(p->dest)->init();
   }
 
-  static void term_destination_(::jpeg_compress_struct* p)
-  {
+  static void term_destination_(::jpeg_compress_struct* p) {
     reinterpret_cast<OstreamDestinationMgr*>(p->dest)->term();
   }
 
-  static boolean empty_output_buffer_(::jpeg_compress_struct* p)
-  {
+  static boolean empty_output_buffer_(::jpeg_compress_struct* p) {
     return reinterpret_cast<OstreamDestinationMgr*>(p->dest)->empty_buffer();
   }
 
-  OstreamDestinationMgr()
-    : os(nullptr)
-  {
+  OstreamDestinationMgr() : os(nullptr) {
     init_destination = &init_destination_;
     term_destination = &term_destination_;
     empty_output_buffer = &empty_output_buffer_;
   }
 
-  void init()
-  {
+  void init() {
     free_in_buffer = sizeof(buffer);
     next_output_byte = buffer;
   }
 
-  void term()
-  {
+  void term() {
     if (os) {
       const char* p = reinterpret_cast<const char*>(buffer);
       os->write(p, sizeof(buffer) - free_in_buffer);
     }
   }
 
-  boolean empty_buffer()
-  {
-    free_in_buffer = 0; // not updated by libjpeg-turbo
+  boolean empty_buffer() {
+    free_in_buffer = 0;  // not updated by libjpeg-turbo
     next_output_byte = buffer + sizeof(buffer);
     term();
     init();
@@ -88,10 +80,9 @@ struct OstreamDestinationMgr : ::jpeg_destination_mgr
   }
 };
 
-} // namespace
+}  // namespace
 
-struct JpegEncoder::Private
-{
+struct JpegEncoder::Private {
   ::jpeg_compress_struct mCompressStruct;
   ::jpeg_error_mgr mErrorMgr;
   OstreamDestinationMgr mDestMgr;
@@ -99,8 +90,7 @@ struct JpegEncoder::Private
   int mQualityPercent;
   bool mCompressing;
 
-  [[noreturn]] static void throwOnError(::jpeg_common_struct* p)
-  {
+  [[noreturn]] static void throwOnError(::jpeg_common_struct* p) {
     char buf[JMSG_LENGTH_MAX];
     (p->err->format_message)(p, buf);
     ::jpeg_abort(p);
@@ -109,78 +99,51 @@ struct JpegEncoder::Private
     throw std::runtime_error(msg);
   }
 
-  Private()
-    : mQualityPercent(90)
-    , mCompressing(false)
-  {
+  Private() : mQualityPercent(90), mCompressing(false) {
     ::jpeg_std_error(&mErrorMgr);
     mErrorMgr.error_exit = &throwOnError;
     mCompressStruct.err = &mErrorMgr;
     ::jpeg_create_compress(&mCompressStruct);
     mCompressStruct.in_color_space = JCS_RGB;
   }
-  ~Private()
-  {
-    if (mCompressing)
-      try {
+  ~Private() {
+    if (mCompressing) try {
         ::jpeg_abort_compress(&mCompressStruct);
       } catch (const std::runtime_error&) {
-        if (mErrorMgr.emit_message)
-          mErrorMgr.emit_message(j_common_ptr(&mCompressStruct), -1);
+        if (mErrorMgr.emit_message) mErrorMgr.emit_message(j_common_ptr(&mCompressStruct), -1);
       }
     ::jpeg_destroy_compress(&mCompressStruct);
   }
 };
 
-JpegEncoder::JpegEncoder()
-  : p(new Private)
-{}
+JpegEncoder::JpegEncoder() : p(new Private) {}
 
-JpegEncoder::~JpegEncoder()
-{
-  delete p;
-}
+JpegEncoder::~JpegEncoder() { delete p; }
 
-JpegEncoder&
-JpegEncoder::setGamma(double d)
-{
+JpegEncoder& JpegEncoder::setGamma(double d) {
   onParamChange();
   p->mCompressStruct.input_gamma = d;
   return *this;
 }
 
-double
-JpegEncoder::gamma() const
-{
-  return p->mCompressStruct.input_gamma;
-}
+double JpegEncoder::gamma() const { return p->mCompressStruct.input_gamma; }
 
-JpegEncoder&
-JpegEncoder::setQualityPercent(int i)
-{
+JpegEncoder& JpegEncoder::setQualityPercent(int i) {
   onParamChange();
   if (i < 0 || i > 100)
-    throw std::runtime_error(
-      "JpegEncoder: qualityPercent outside 0..100 range");
+    throw std::runtime_error("JpegEncoder: qualityPercent outside 0..100 range");
   p->mQualityPercent = i;
   return *this;
 }
 
-int
-JpegEncoder::qualityPercent() const
-{
-  return p->mQualityPercent;
-}
+int JpegEncoder::qualityPercent() const { return p->mQualityPercent; }
 
-void
-JpegEncoder::onImageBegin()
-{
+void JpegEncoder::onImageBegin() {
   if (bitDepth() != 8 && bitDepth() != 16)
     throw std::runtime_error("JpegEncoder: bit depth unsupported");
   if (currentImage() > 0)
     throw std::runtime_error("JpegEncoder: cannot encode more than one image per file");
-  if (orientationDegrees() != 0)
-    throw std::runtime_error("JpegEncoder: cannot rotate image");
+  if (orientationDegrees() != 0) throw std::runtime_error("JpegEncoder: cannot rotate image");
   p->mCompressStruct.image_width = width();
   p->mCompressStruct.image_height = height();
   p->mCompressStruct.input_components = components();
@@ -199,8 +162,7 @@ JpegEncoder::onImageBegin()
   ::jpeg_set_quality(&p->mCompressStruct, p->mQualityPercent, TRUE);
   if (p->mQualityPercent == 100) {
     p->mCompressStruct.smoothing_factor = 0;
-    if (p->mCompressStruct.dct_method == JDCT_IFAST)
-      p->mCompressStruct.dct_method = JDCT_ISLOW;
+    if (p->mCompressStruct.dct_method == JDCT_IFAST) p->mCompressStruct.dct_method = JDCT_ISLOW;
     p->mCompressStruct.comp_info[0].h_samp_factor = 1;
     p->mCompressStruct.comp_info[0].v_samp_factor = 1;
     p->mCompressStruct.comp_info[1].h_samp_factor = 1;
@@ -216,19 +178,19 @@ JpegEncoder::onImageBegin()
   p->mCompressing = true;
 }
 
-void
-JpegEncoder::onImageEnd()
-{
+void JpegEncoder::onImageEnd() {
   ::jpeg_finish_compress(&p->mCompressStruct);
   p->mCompressing = false;
 }
 
-void
-JpegEncoder::onWriteLine(const void* data)
-{
+void JpegEncoder::onWriteLine(const void* data) {
   std::vector<unsigned char> line(width() * components());
   if (bitDepth() == 16) {
-    union { const void* p; const unsigned short* s; const unsigned char* c; } p = { data };
+    union {
+      const void* p;
+      const unsigned short* s;
+      const unsigned char* c;
+    } p = {data};
 #if BYTE_ORDER == LITTLE_ENDIAN
     const int idx = 1;
 #else
@@ -238,12 +200,10 @@ JpegEncoder::onWriteLine(const void* data)
       line[i] = p.c[idx];
       ++p.s;
     }
-  }
-  else if (bitDepth() == 8) {
+  } else if (bitDepth() == 8) {
     ::memcpy(line.data(), data, line.size());
   }
   auto linedata = JSAMPROW(line.data());
   int written = ::jpeg_write_scanlines(&p->mCompressStruct, &linedata, 1);
-  if (written != 1)
-    throw std::runtime_error("JpegEncoder: could not write scan line");
+  if (written != 1) throw std::runtime_error("JpegEncoder: could not write scan line");
 }

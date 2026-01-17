@@ -19,18 +19,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef NETWORK_HOTPLUGNOTIFIER_H
 #define NETWORK_HOTPLUGNOTIFIER_H
 
-class NetworkHotplugNotifier
-{
+class NetworkHotplugNotifier {
   NetworkHotplugNotifier(const NetworkHotplugNotifier&) = delete;
   NetworkHotplugNotifier& operator=(const NetworkHotplugNotifier&) = delete;
 
-public:
+ public:
   NetworkHotplugNotifier();
   virtual ~NetworkHotplugNotifier();
 
-protected:
-  enum Event
-  {
+ protected:
+  enum Event {
     other,
     addressArrived,
     addressLeft,
@@ -38,9 +36,9 @@ protected:
   };
   virtual void onHotplugEvent(Event) {}
 
-private:
+ private:
   struct Private;
   Private* p;
 };
 
-#endif // NETWORK_HOTPLUGNOTIFIER_H
+#endif  // NETWORK_HOTPLUGNOTIFIER_H

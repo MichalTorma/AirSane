@@ -21,55 +21,52 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #import <Foundation/Foundation.h>
 #import <SystemConfiguration/SystemConfiguration.h>
 
-#include <iostream>
-#include <vector>
-#include <thread>
 #include <atomic>
+#include <iostream>
+#include <thread>
+#include <vector>
 
 #include <string.h>
 
-struct NetworkHotplugNotifier::Private
-{
+struct NetworkHotplugNotifier::Private {
   std::thread mThread;
   NetworkHotplugNotifier* mpNotifier;
   std::atomic<CFRunLoopRef> mRunLoop{NULL};
   std::atomic<bool> mTerminate{false};
 
-  Private(NetworkHotplugNotifier* pNotifier)
-  : mpNotifier(pNotifier)
-  {
+  Private(NetworkHotplugNotifier* pNotifier) : mpNotifier(pNotifier) {
     mTerminate = false;
     mThread = std::thread([this]() { hotplugThread(); });
   }
 
-  ~Private()
-  {
+  ~Private() {
     CFRunLoopRef runLoop = NULL;
-    while (!runLoop)
-      runLoop = mRunLoop;
+    while (!runLoop) runLoop = mRunLoop;
     mTerminate = true;
     ::CFRunLoopStop(runLoop);
     mThread.join();
   }
 
-  void hotplugThread()
-  {
+  void hotplugThread() {
     mRunLoop = ::CFRunLoopGetCurrent();
-    
-    NSArray *SCMonitoringInterfacePatterns = @[@"State:/Network/Global/IPv[46]"];
+
+    NSArray* SCMonitoringInterfacePatterns = @[ @"State:/Network/Global/IPv[46]" ];
     @autoreleasepool {
-        SCDynamicStoreContext ctx = {0};
-        ctx.info = this;
-        ::SCDynamicStoreRef dsr = ::SCDynamicStoreCreate(NULL, CFSTR("network_interface_detector"), &notificationCallback, &ctx);
-        ::SCDynamicStoreSetNotificationKeys(dsr, NULL, (CFArrayRef)::CFBridgingRetain(SCMonitoringInterfacePatterns));
-        ::CFRunLoopAddSource(::CFRunLoopGetCurrent(), ::SCDynamicStoreCreateRunLoopSource(NULL, dsr, 0), kCFRunLoopDefaultMode);
-        while (!mTerminate && [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]])
-            ;
+      SCDynamicStoreContext ctx = {0};
+      ctx.info = this;
+      ::SCDynamicStoreRef dsr = ::SCDynamicStoreCreate(NULL, CFSTR("network_interface_detector"),
+                                                       &notificationCallback, &ctx);
+      ::SCDynamicStoreSetNotificationKeys(
+          dsr, NULL, (CFArrayRef)::CFBridgingRetain(SCMonitoringInterfacePatterns));
+      ::CFRunLoopAddSource(::CFRunLoopGetCurrent(),
+                           ::SCDynamicStoreCreateRunLoopSource(NULL, dsr, 0),
+                           kCFRunLoopDefaultMode);
+      while (!mTerminate && [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+                                                     beforeDate:[NSDate distantFuture]]);
     }
   }
-  
-  static void notificationCallback(SCDynamicStoreRef store, CFArrayRef changedKeys, void*  info)
-  {
+
+  static void notificationCallback(SCDynamicStoreRef store, CFArrayRef changedKeys, void* info) {
 #if 0
       @autoreleasepool {
           CFIndex count = CFArrayGetCount(changedKeys);
@@ -83,16 +80,11 @@ struct NetworkHotplugNotifier::Private
       }
 #endif
 
-      auto p = static_cast<Private*>(info);
-      p->mpNotifier->onHotplugEvent(addressChange);
+    auto p = static_cast<Private*>(info);
+    p->mpNotifier->onHotplugEvent(addressChange);
   }
 };
 
-NetworkHotplugNotifier::NetworkHotplugNotifier()
-  : p(new Private(this))
-{}
+NetworkHotplugNotifier::NetworkHotplugNotifier() : p(new Private(this)) {}
 
-NetworkHotplugNotifier::~NetworkHotplugNotifier()
-{
-  delete p;
-}
+NetworkHotplugNotifier::~NetworkHotplugNotifier() { delete p; }

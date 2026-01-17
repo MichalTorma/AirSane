@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "sanecpp.h"
+
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -31,28 +32,21 @@ namespace {
 // locale-independent conversions
 const std::locale clocale = std::locale("C");
 
-} // namespace
+}  // namespace
 
 namespace sanecpp {
 
-double
-strtod_c(const std::string& s)
-{
+double strtod_c(const std::string& s) {
   double d;
   std::istringstream iss(s);
   iss.imbue(clocale);
-  if (iss >> d)
-    return d;
-  if (s == "yes" || s == "true")
-    return 1;
-  if (s == "no" || s == "false")
-    return 0;
+  if (iss >> d) return d;
+  if (s == "yes" || s == "true") return 1;
+  if (s == "no" || s == "false") return 0;
   return std::numeric_limits<double>::quiet_NaN();
 }
 
-std::string
-dtostr_c(double d)
-{
+std::string dtostr_c(double d) {
   std::ostringstream oss;
   oss.imbue(clocale);
   oss << d;
@@ -66,9 +60,7 @@ option option_set::s_nulloption;
 static int sane_init_refcount = 0;
 static std::mutex sane_init_mutex;
 
-void
-sane_init_addref()
-{
+void sane_init_addref() {
   std::lock_guard<std::mutex> lock(sane_init_mutex);
   if (++sane_init_refcount == 1) {
     log << "sane_init(nullptr, nullptr)" << std::endl;
@@ -76,9 +68,7 @@ sane_init_addref()
   }
 }
 
-void
-sane_init_release()
-{
+void sane_init_release() {
   std::lock_guard<std::mutex> lock(sane_init_mutex);
   assert(sane_init_refcount > 0);
   if (--sane_init_refcount == 0) {
@@ -87,40 +77,26 @@ sane_init_release()
   }
 }
 
-init::init()
-{
-  sane_init_addref();
-}
+init::init() { sane_init_addref(); }
 
-init::~init()
-{
-  sane_init_release();
-}
+init::~init() { sane_init_release(); }
 
 option_set::option_set() {}
 
-option_set::option_set(device_handle h)
-{
-  init(h);
-}
+option_set::option_set(device_handle h) { init(h); }
 
-void
-option_set::init(device_handle h)
-{
+void option_set::init(device_handle h) {
   m_device = h;
   m_options.clear();
   if (h) {
     const SANE_Option_Descriptor* desc = nullptr;
     for (int i = 1; (desc = ::sane_get_option_descriptor(h.get(), i)); ++i) {
-      if (desc->name && *desc->name)
-        m_options[desc->name] = option(this, desc, i);
+      if (desc->name && *desc->name) m_options[desc->name] = option(this, desc, i);
     }
   }
 }
 
-void
-option_set::reload()
-{
+void option_set::reload() {
   SANE_Handle h = m_device.get();
   const SANE_Option_Descriptor* desc = nullptr;
   for (int i = 1; (desc = ::sane_get_option_descriptor(h, i)); ++i) {
@@ -136,9 +112,7 @@ option_set::reload()
   }
 }
 
-std::ostream&
-option_set::print(std::ostream& os) const
-{
+std::ostream& option_set::print(std::ostream& os) const {
   for (const auto& opt : m_options)
     if (opt.second.is_active()) {
       os << "\n[" << opt.first << "] = ";
@@ -149,63 +123,40 @@ option_set::print(std::ostream& os) const
       else if (opt.second.array_size() == 1)
         os << opt.second.value();
       else
-        for (int i = 0; i < opt.second.array_size(); ++i)
-          os << opt.second.value(i) << ' ';
+        for (int i = 0; i < opt.second.array_size(); ++i) os << opt.second.value(i) << ' ';
     }
   return os;
 }
 
-option&
-option_set::operator[](const std::string& s)
-{
+option& option_set::operator[](const std::string& s) {
   auto i = m_options.find(s);
   return i == m_options.end() ? s_nulloption : i->second;
 }
 
-const option&
-option_set::operator[](const std::string& s) const
-{
+const option& option_set::operator[](const std::string& s) const {
   auto i = m_options.find(s);
   return i == m_options.end() ? s_nulloption : i->second;
 }
 
 option::option(option_set* set, const SANE_Option_Descriptor* d, SANE_Int i)
-  : m_set(set)
-  , m_desc(d)
-  , m_index(i)
-{}
+    : m_set(set), m_desc(d), m_index(i) {}
 
-option::option()
-  : m_set(nullptr)
-  , m_desc(nullptr)
-  , m_index(0)
-{}
+option::option() : m_set(nullptr), m_desc(nullptr), m_index(0) {}
 
-option&
-option::operator=(const std::string& s)
-{
+option& option::operator=(const std::string& s) {
   set_value(s);
   return *this;
 }
 
-option&
-option::operator=(double d)
-{
+option& option::operator=(double d) {
   set_value(d);
   return *this;
 }
 
-bool
-option::is_null() const
-{
-  return !m_desc;
-}
+bool option::is_null() const { return !m_desc; }
 
-int
-option::array_size() const
-{
-  if (m_desc)
-    switch (m_desc->type) {
+int option::array_size() const {
+  if (m_desc) switch (m_desc->type) {
       case SANE_TYPE_BUTTON:
       case SANE_TYPE_GROUP:
         return 0;
@@ -219,29 +170,14 @@ option::array_size() const
   return 0;
 }
 
-bool
-option::is_active() const
-{
-  return m_desc && SANE_OPTION_IS_ACTIVE(m_desc->cap);
-}
+bool option::is_active() const { return m_desc && SANE_OPTION_IS_ACTIVE(m_desc->cap); }
 
-bool
-option::is_settable() const
-{
-  return m_desc && SANE_OPTION_IS_SETTABLE(m_desc->cap);
-}
+bool option::is_settable() const { return m_desc && SANE_OPTION_IS_SETTABLE(m_desc->cap); }
 
-bool
-option::is_string() const
-{
-  return m_desc && m_desc->type == SANE_TYPE_STRING;
-}
+bool option::is_string() const { return m_desc && m_desc->type == SANE_TYPE_STRING; }
 
-bool
-option::is_numeric() const
-{
-  if (m_desc)
-    switch (m_desc->type) {
+bool option::is_numeric() const {
+  if (m_desc) switch (m_desc->type) {
       case SANE_TYPE_INT:
       case SANE_TYPE_FIXED:
       case SANE_TYPE_BOOL:
@@ -252,28 +188,19 @@ option::is_numeric() const
   return false;
 }
 
-bool
-option::set_value(int index, const std::string& value)
-{
-  if (!set_string_value(index, value))
-    return set_numeric_value(index, strtod_c(value));
+bool option::set_value(int index, const std::string& value) {
+  if (!set_string_value(index, value)) return set_numeric_value(index, strtod_c(value));
   return true;
 }
 
-bool
-option::set_value(int index, double value)
-{
-  if (!set_numeric_value(index, value))
-    return set_string_value(index, dtostr_c(value));
+bool option::set_value(int index, double value) {
+  if (!set_numeric_value(index, value)) return set_string_value(index, dtostr_c(value));
   return true;
 }
 
-std::string
-option::value(int index) const
-{
+std::string option::value(int index) const {
   if (index >= 0 && index < array_size()) {
-    if (is_null() || is_string())
-      return string_value(index);
+    if (is_null() || is_string()) return string_value(index);
     if (is_numeric()) {
       std::ostringstream oss;
       oss << dtostr_c(numeric_value(index)) << m_desc->unit;
@@ -283,67 +210,53 @@ option::value(int index) const
   return "n/a";
 }
 
-bool
-option::set_string_value(int index, const std::string& value)
-{
+bool option::set_string_value(int index, const std::string& value) {
   SANE_Handle h = m_set ? m_set->m_device.get() : nullptr;
-  if (!h)
-    return false;
-  if (!m_desc || m_desc->type != SANE_TYPE_STRING)
-    return false;
-  if (index != 0)
-    return false;
-  if (!is_settable() || !is_active())
-    return false;
+  if (!h) return false;
+  if (!m_desc || m_desc->type != SANE_TYPE_STRING) return false;
+  if (index != 0) return false;
+  if (!is_settable() || !is_active()) return false;
   SANE_Int info = 0;
-  SANE_Status status = ::sane_control_option(
-    h, m_index, SANE_ACTION_SET_VALUE, const_cast<char*>(value.c_str()), &info);
+  SANE_Status status = ::sane_control_option(h, m_index, SANE_ACTION_SET_VALUE,
+                                             const_cast<char*>(value.c_str()), &info);
   log << "[" << m_desc->name << "] := \"" << value << "\"";
   if (status != SANE_STATUS_GOOD)
     log << " -> " << status;
   else if (info & SANE_INFO_RELOAD_OPTIONS)
     log << " -> reload options";
   log << std::endl;
-  if (info & SANE_INFO_RELOAD_OPTIONS)
-    m_set->reload();
+  if (info & SANE_INFO_RELOAD_OPTIONS) m_set->reload();
   return status == SANE_STATUS_GOOD;
 }
 
-std::string
-option::string_value(int index) const
-{
+std::string option::string_value(int index) const {
   std::string s;
   SANE_Handle h = m_set ? m_set->m_device.get() : nullptr;
   if (h && is_string() && index == 0) {
     std::vector<SANE_Char> value(m_desc->size);
-    SANE_Status status = ::sane_control_option(h, m_index, SANE_ACTION_GET_VALUE, value.data(), nullptr);
+    SANE_Status status =
+        ::sane_control_option(h, m_index, SANE_ACTION_GET_VALUE, value.data(), nullptr);
     if (status == SANE_STATUS_GOOD)
       s = value.data();
     else
-      log << "sane_control_option(" << h << ", " << m_index << ", SANE_ACTION_GET_VALUE) -> " << status << std::endl;
+      log << "sane_control_option(" << h << ", " << m_index << ", SANE_ACTION_GET_VALUE) -> "
+          << status << std::endl;
   }
   return s;
 }
 
-std::vector<std::string>
-option::allowed_string_values() const
-{
+std::vector<std::string> option::allowed_string_values() const {
   std::vector<std::string> values;
   if (is_string() && m_desc->constraint_type == SANE_CONSTRAINT_STRING_LIST)
-    for (const SANE_String_Const* s = m_desc->constraint.string_list; *s && **s;
-         ++s)
+    for (const SANE_String_Const* s = m_desc->constraint.string_list; *s && **s; ++s)
       values.push_back(*s);
   return values;
 }
 
-bool
-option::set_numeric_value(int index, double value)
-{
+bool option::set_numeric_value(int index, double value) {
   SANE_Handle h = m_set ? m_set->m_device.get() : nullptr;
-  if (!h)
-    return false;
-  if (!is_numeric() || !is_settable() || !is_active())
-    return false;
+  if (!h) return false;
+  if (!is_numeric() || !is_settable() || !is_active()) return false;
   SANE_Word w;
   if (m_desc->type == SANE_TYPE_FIXED)
     w = SANE_FIX(value);
@@ -352,72 +265,58 @@ option::set_numeric_value(int index, double value)
   SANE_Int info = 0;
   SANE_Status status = SANE_STATUS_GOOD;
   if (array_size() == 1 && index == 0) {
-    status =
-      ::sane_control_option(h, m_index, SANE_ACTION_SET_VALUE, &w, &info);
+    status = ::sane_control_option(h, m_index, SANE_ACTION_SET_VALUE, &w, &info);
     log << "[" << m_desc->name << "] := " << value << m_desc->unit;
   } else if (index >= 0 && index < array_size()) {
     std::vector<SANE_Word> data(array_size());
-    status = ::sane_control_option(
-      h, m_index, SANE_ACTION_GET_VALUE, data.data(), &info);
+    status = ::sane_control_option(h, m_index, SANE_ACTION_GET_VALUE, data.data(), &info);
     if (status == SANE_STATUS_GOOD) {
       data[index] = w;
-      status = ::sane_control_option(
-        h, m_index, SANE_ACTION_SET_VALUE, data.data(), &info);
+      status = ::sane_control_option(h, m_index, SANE_ACTION_SET_VALUE, data.data(), &info);
     }
-    log << "[" << m_desc->name << "][" << index << "] := " << value
-        << m_desc->unit;
+    log << "[" << m_desc->name << "][" << index << "] := " << value << m_desc->unit;
   } else {
-    log << "invalid array index for parameter " << m_desc->name << ": "
-        << index;
+    log << "invalid array index for parameter " << m_desc->name << ": " << index;
   }
   if (status != SANE_STATUS_GOOD)
     log << " -> " << status;
   else if (info & SANE_INFO_RELOAD_OPTIONS)
     log << " -> reload options";
   log << std::endl;
-  if (info & SANE_INFO_RELOAD_OPTIONS)
-    m_set->reload();
+  if (info & SANE_INFO_RELOAD_OPTIONS) m_set->reload();
   return status == SANE_STATUS_GOOD;
 }
 
-double
-option::numeric_value(int index) const
-{
+double option::numeric_value(int index) const {
   double value = std::numeric_limits<double>::quiet_NaN();
   SANE_Handle h = m_set ? m_set->m_device.get() : nullptr;
-  if (!h || !is_numeric())
-    return value;
-  if (index < 0 || index >= array_size())
-    return value;
+  if (!h || !is_numeric()) return value;
+  if (index < 0 || index >= array_size()) return value;
   std::vector<SANE_Word> data(array_size());
-  SANE_Status status = ::sane_control_option(h, m_index, SANE_ACTION_GET_VALUE, data.data(), nullptr);
+  SANE_Status status =
+      ::sane_control_option(h, m_index, SANE_ACTION_GET_VALUE, data.data(), nullptr);
   if (status != SANE_STATUS_GOOD) {
-    log << "sane_control_option(" << h << ", " << m_index << ", SANE_ACTION_GET_VALUE) -> " << status << std::endl;
+    log << "sane_control_option(" << h << ", " << m_index << ", SANE_ACTION_GET_VALUE) -> "
+        << status << std::endl;
     return value;
   }
   value = data[index];
-  if (m_desc->type == SANE_TYPE_FIXED)
-    value = SANE_UNFIX(value);
+  if (m_desc->type == SANE_TYPE_FIXED) value = SANE_UNFIX(value);
   return value;
 }
 
-std::vector<double>
-option::allowed_numeric_values() const
-{
+std::vector<double> option::allowed_numeric_values() const {
   std::vector<double> values;
   if (is_numeric() && m_desc->constraint_type == SANE_CONSTRAINT_WORD_LIST) {
     for (int i = 1; i <= m_desc->constraint.word_list[0]; ++i)
       values.push_back(m_desc->constraint.word_list[i]);
     if (m_desc->type == SANE_TYPE_FIXED)
-      for (auto& value : values)
-        value = SANE_UNFIX(value);
+      for (auto& value : values) value = SANE_UNFIX(value);
   }
   return values;
 }
 
-double
-option::min() const
-{
+double option::min() const {
   double value = std::numeric_limits<double>::quiet_NaN();
   if (m_desc) {
     switch (m_desc->constraint_type) {
@@ -433,15 +332,12 @@ option::min() const
           value = std::min<double>(value, m_desc->constraint.word_list[i]);
         break;
     }
-    if (m_desc->type == SANE_TYPE_FIXED)
-      value = SANE_UNFIX(value);
+    if (m_desc->type == SANE_TYPE_FIXED) value = SANE_UNFIX(value);
   }
   return value;
 }
 
-double
-option::max() const
-{
+double option::max() const {
   double value = std::numeric_limits<double>::quiet_NaN();
   if (m_desc) {
     switch (m_desc->constraint_type) {
@@ -457,45 +353,32 @@ option::max() const
           value = std::max<double>(value, m_desc->constraint.word_list[i]);
         break;
     }
-    if (m_desc->type == SANE_TYPE_FIXED)
-      value = SANE_UNFIX(value);
+    if (m_desc->type == SANE_TYPE_FIXED) value = SANE_UNFIX(value);
   }
   return value;
 }
 
-double
-option::quant() const
-{
+double option::quant() const {
   double value = std::numeric_limits<double>::quiet_NaN();
   if (m_desc && m_desc->constraint_type == SANE_CONSTRAINT_RANGE) {
     value = m_desc->constraint.range->quant;
-    if (m_desc->type == SANE_TYPE_FIXED)
-      value = SANE_UNFIX(value);
+    if (m_desc->type == SANE_TYPE_FIXED) value = SANE_UNFIX(value);
   }
   return value;
 }
 
-SANE_Unit
-option::unit() const
-{
-  return m_desc ? m_desc->unit : SANE_UNIT_NONE;
-}
+SANE_Unit option::unit() const { return m_desc ? m_desc->unit : SANE_UNIT_NONE; }
 
-device_handle
-open(const std::string& name, SANE_Status* pStatus)
-{
+device_handle open(const std::string& name, SANE_Status* pStatus) {
   sane_init_addref();
   log << "sane_open(" << name << ") -> ";
   SANE_Handle h;
   SANE_Status status = ::sane_open(name.c_str(), &h);
-  if (pStatus)
-    *pStatus = status;
+  if (pStatus) *pStatus = status;
   if (SANE_STATUS_GOOD == status) {
     log << h << std::endl;
-    struct handle_deleter
-    {
-      void operator()(SANE_Handle h) const
-      {
+    struct handle_deleter {
+      void operator()(SANE_Handle h) const {
         log << "sane_close(" << h << ")" << std::endl;
         ::sane_close(h);
         sane_init_release();
@@ -509,15 +392,11 @@ open(const std::string& name, SANE_Status* pStatus)
   return std::shared_ptr<void>();
 }
 
-device_handle
-open(const device_info& info, SANE_Status* pStatus)
-{
+device_handle open(const device_info& info, SANE_Status* pStatus) {
   return open(info.name, pStatus);
 }
 
-std::vector<device_info>
-enumerate_devices(bool localonly)
-{
+std::vector<device_info> enumerate_devices(bool localonly) {
   std::vector<device_info> devices;
   const SANE_Device** p;
   sane_init_addref();
@@ -538,22 +417,17 @@ enumerate_devices(bool localonly)
   return devices;
 }
 
-session::session(const std::string& devicename)
-  : m_status(SANE_STATUS_GOOD)
-{
+session::session(const std::string& devicename) : m_status(SANE_STATUS_GOOD) {
   m_device = sanecpp::open(devicename, &m_status);
   init();
 }
 
 session::session(device_handle h)
-  : m_device(h)
-  , m_status(h ? SANE_STATUS_GOOD : SANE_STATUS_DEVICE_BUSY)
-{
+    : m_device(h), m_status(h ? SANE_STATUS_GOOD : SANE_STATUS_DEVICE_BUSY) {
   init();
 }
 
-session::~session()
-{
+session::~session() {
   // SANE API documentation says that sane_cancel() must be called
   // when scanning is finished.
   // Canceling without an active session should not have any adverse effects, so
@@ -561,9 +435,7 @@ session::~session()
   cancel();
 }
 
-session&
-session::start()
-{
+session& session::start() {
   m_status = ::sane_start(m_device.get());
   switch (m_status) {
     case SANE_STATUS_GOOD:
@@ -571,14 +443,11 @@ session::start()
     default:
       log << "sane_start(" << m_device.get() << "): " << m_status << std::endl;
   }
-  if (m_status == SANE_STATUS_GOOD)
-    m_status = ::sane_get_parameters(m_device.get(), &m_parameters);
+  if (m_status == SANE_STATUS_GOOD) m_status = ::sane_get_parameters(m_device.get(), &m_parameters);
   return *this;
 }
 
-session&
-session::cancel()
-{
+session& session::cancel() {
   if (m_device) {
     log << "sane_cancel(" << m_device.get() << ")" << std::endl;
     ::sane_cancel(m_device.get());
@@ -586,16 +455,13 @@ session::cancel()
   return *this;
 }
 
-session&
-session::read(std::vector<char>& buffer)
-{
+session& session::read(std::vector<char>& buffer) {
   SANE_Status status = SANE_STATUS_GOOD;
   size_t total = 0;
   SANE_Byte* p = reinterpret_cast<SANE_Byte*>(buffer.data());
   while (status == SANE_STATUS_GOOD && total < buffer.size()) {
     SANE_Int read;
-    status =
-      ::sane_read(m_device.get(), p + total, buffer.size() - total, &read);
+    status = ::sane_read(m_device.get(), p + total, buffer.size() - total, &read);
     total += read;
   }
   switch (status) {
@@ -608,30 +474,19 @@ session::read(std::vector<char>& buffer)
   return *this;
 }
 
-const session&
-session::dump_options() const
-{
-  log << "session " << m_device.get() << " options:" << m_options
-      << std::endl;
+const session& session::dump_options() const {
+  log << "session " << m_device.get() << " options:" << m_options << std::endl;
   return *this;
 }
 
-void
-session::init()
-{
+void session::init() {
   ::memset(&m_parameters, 0, sizeof(m_parameters));
   m_options.init(m_device);
 }
 
-std::ostream&
-print(std::ostream& os, SANE_Status s)
-{
-  return os << ::sane_strstatus(s);
-}
+std::ostream& print(std::ostream& os, SANE_Status s) { return os << ::sane_strstatus(s); }
 
-std::ostream&
-print(std::ostream& os, SANE_Unit u)
-{
+std::ostream& print(std::ostream& os, SANE_Unit u) {
   switch (u) {
     case SANE_UNIT_NONE:
       break;
@@ -659,4 +514,4 @@ print(std::ostream& os, SANE_Unit u)
   return os;
 }
 
-} // namespace sanecpp
+}  // namespace sanecpp

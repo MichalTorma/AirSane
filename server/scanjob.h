@@ -26,17 +26,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 class Scanner;
 
-class ScanJob
-{
+class ScanJob {
   ScanJob(const ScanJob&) = delete;
   ScanJob& operator=(const ScanJob&) = delete;
 
-public:
+ public:
   ScanJob(Scanner*, const std::string& uuid);
   ~ScanJob();
 
-  ScanJob& initWithScanSettingsXml(const std::string&,
-                                   bool autoselectFormat,
+  ScanJob& initWithScanSettingsXml(const std::string&, bool autoselectFormat,
                                    const OptionsFile::Options&);
 
   enum { single, adfSingle, adfConcat };
@@ -53,14 +51,7 @@ public:
   ScanJob& finishTransfer(std::ostream&);
   ScanJob& cancel();
 
-  typedef enum
-  {
-    aborted,
-    canceled,
-    completed,
-    pending,
-    processing
-  } State;
+  typedef enum { aborted, canceled, completed, pending, processing } State;
   State state() const;
 
   std::string statusString() const;
@@ -75,9 +66,9 @@ public:
 
   void writeJobInfoXml(std::ostream&) const;
 
-private:
+ private:
   struct Private;
   Private* p;
 };
 
-#endif // SCANJOB_H
+#endif  // SCANJOB_H

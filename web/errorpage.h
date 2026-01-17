@@ -21,16 +21,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "webpage.h"
 
-class ErrorPage : public WebPage
-{
-public:
+class ErrorPage : public WebPage {
+ public:
   explicit ErrorPage(int errorCode);
 
-protected:
+ protected:
   void onRender() override;
 
-private:
+ private:
   int mErrorCode;
 };
 
-#endif // ERRORPAGE_H
+#endif  // ERRORPAGE_H

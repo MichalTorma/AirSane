@@ -17,49 +17,46 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "scanjob.h"
-#include "imageformats/jpegencoder.h"
-#include "imageformats/pdfencoder.h"
-#include "imageformats/pngencoder.h"
-#include "scanner.h"
-#include "web/httpserver.h"
-#include "basic/workerthread.h"
+
+#include <sane/saneopts.h>
 
 #include <atomic>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <regex>
 #include <stdexcept>
-#include <limits>
 
-#include <sane/saneopts.h>
+#include "basic/workerthread.h"
+#include "imageformats/jpegencoder.h"
+#include "imageformats/pdfencoder.h"
+#include "imageformats/pngencoder.h"
+#include "scanner.h"
+#include "web/httpserver.h"
 
 // pwg JobStateReasonsWKV
 static const char* PWG_NONE = "None";
-//static const char* PWG_SERVICE_OFF_LINE = "ServiceOffLine";
+// static const char* PWG_SERVICE_OFF_LINE = "ServiceOffLine";
 static const char* PWG_RESOURCES_ARE_NOT_READY = "ResourcesAreNotReady";
 static const char* PWG_JOB_QUEUED = "JobQueued";
 static const char* PWG_JOB_SCANNING = "JobScanning";
-//static const char* PWG_JOB_SCANNING_AND_TRANSFERRING =
-//  "JobScanningAndTransferring";
+// static const char* PWG_JOB_SCANNING_AND_TRANSFERRING =
+//   "JobScanningAndTransferring";
 static const char* PWG_JOB_COMPLETED_SUCCESSFULLY = "JobCompletedSuccessfully";
 static const char* PWG_JOB_CANCELED_BY_USER = "JobCanceledByUser";
 static const char* PWG_INVALID_SCAN_TICKET = "InvalidScanTicket";
-static const char* PWG_UNSUPPORTED_DOCUMENT_FORMAT =
-  "UnsupportedDocumentFormat";
+static const char* PWG_UNSUPPORTED_DOCUMENT_FORMAT = "UnsupportedDocumentFormat";
 static const char* PWG_DOCUMENT_PERMISSION_ERROR = "DocumentPermissionError";
 static const char* PWG_ERRORS_DETECTED = "ErrorsDetected";
 
 namespace {
 
-struct ScanSettingsXml
-{
-  ScanSettingsXml(const std::string& s)
-    : xml(s)
-  {}
+struct ScanSettingsXml {
+  ScanSettingsXml(const std::string& s) : xml(s) {}
 
-  std::string getString(const std::string& name) const
-  { // scan settings xml is simple enough to avoid using a parser
+  std::string getString(const std::string& name)
+      const {  // scan settings xml is simple enough to avoid using a parser
     std::regex r("<([a-zA-Z]+:" + name + ")>([^<]*)</\\1>");
     std::smatch m;
     if (std::regex_search(xml, m, r)) {
@@ -69,33 +66,24 @@ struct ScanSettingsXml
     return "";
   }
 
-  double getNumber(const std::string& name) const
-  {
-    return sanecpp::strtod_c(getString(name));
-  }
+  double getNumber(const std::string& name) const { return sanecpp::strtod_c(getString(name)); }
   std::string xml;
 };
 
-template<class T> std::string describeStreamState(T& stream)
-{
-  if (stream.good())
-      return "(good)";
+template <class T>
+std::string describeStreamState(T& stream) {
+  if (stream.good()) return "(good)";
   std::string state;
-  if (stream.fail())
-      state += "fail, ";
-  if (stream.eof())
-      state += "eof, ";
-  if (stream.bad())
-      state += "bad, ";
-  if (!state.empty())
-      state = state.substr(0, state.length() - 2);
+  if (stream.fail()) state += "fail, ";
+  if (stream.eof()) state += "eof, ";
+  if (stream.bad()) state += "bad, ";
+  if (!state.empty()) state = state.substr(0, state.length() - 2);
   return "(" + state + ")";
 }
 
-}
+}  // namespace
 
-struct ScanJob::Private
-{
+struct ScanJob::Private {
   void init(const ScanSettingsXml&, bool autoselectFormat, const OptionsFile::Options&);
   const char* kindString() const;
   void applyDeviceOptions(const OptionsFile::Options&);
@@ -147,9 +135,7 @@ struct ScanJob::Private
   WorkerThread mWorkerThread;
 };
 
-ScanJob::ScanJob(Scanner* scanner, const std::string& uuid)
-  : p(new Private)
-{
+ScanJob::ScanJob(Scanner* scanner, const std::string& uuid) : p(new Private) {
   p->mpScanner = scanner;
   p->mCreated = ::time(nullptr);
   p->mLastActive = p->mCreated.load();
@@ -159,90 +145,50 @@ ScanJob::ScanJob(Scanner* scanner, const std::string& uuid)
   p->mAdfStatus = SANE_STATUS_GOOD;
 }
 
-ScanJob::~ScanJob()
-{
-  delete p;
-}
+ScanJob::~ScanJob() { delete p; }
 
-ScanJob&
-ScanJob::initWithScanSettingsXml(const std::string& xml, bool autoselect, const OptionsFile::Options& deviceOptions)
-{
+ScanJob& ScanJob::initWithScanSettingsXml(const std::string& xml, bool autoselect,
+                                          const OptionsFile::Options& deviceOptions) {
   p->init(ScanSettingsXml(xml), autoselect, deviceOptions);
   return *this;
 }
 
-int
-ScanJob::ageSeconds() const
-{
-  return ::time(nullptr) - p->mCreated;
-}
+int ScanJob::ageSeconds() const { return ::time(nullptr) - p->mCreated; }
 
-int
-ScanJob::idleSeconds() const
-{
-  return ::time(nullptr) - p->mLastActive;
-}
+int ScanJob::idleSeconds() const { return ::time(nullptr) - p->mLastActive; }
 
-int
-ScanJob::imagesCompleted() const
-{
-  return p->mImagesCompleted;
-}
+int ScanJob::imagesCompleted() const { return p->mImagesCompleted; }
 
-std::string
-ScanJob::uri() const
-{
-  return p->mpScanner->uri() + "/ScanJobs/" + p->mUuid;
-}
+std::string ScanJob::uri() const { return p->mpScanner->uri() + "/ScanJobs/" + p->mUuid; }
 
-const std::string&
-ScanJob::uuid() const
-{
-  return p->mUuid;
-}
+const std::string& ScanJob::uuid() const { return p->mUuid; }
 
-const std::string&
-ScanJob::documentFormat() const
-{
-  return p->mDocumentFormat;
-}
+const std::string& ScanJob::documentFormat() const { return p->mDocumentFormat; }
 
-SANE_Status
-ScanJob::adfStatus() const
-{
-  return p->mAdfStatus;
-}
+SANE_Status ScanJob::adfStatus() const { return p->mAdfStatus; }
 
-void
-ScanJob::Private::init(const ScanSettingsXml& settings, bool autoselectFormat, const OptionsFile::Options& options)
-{
+void ScanJob::Private::init(const ScanSettingsXml& settings, bool autoselectFormat,
+                            const OptionsFile::Options& options) {
   const char* err = nullptr;
 
   mIntent = settings.getString("Intent");
-  if (mIntent.empty())
-    mIntent = "Photo";
+  if (mIntent.empty()) mIntent = "Photo";
 
   double res_dpi = settings.getNumber("XResolution");
   if (!std::isnan(res_dpi) && res_dpi != settings.getNumber("YResolution"))
     err = PWG_INVALID_SCAN_TICKET;
   res_dpi = ::floor(res_dpi + 0.5);
 
-  double left = settings.getNumber("XOffset"),
-         top = settings.getNumber("YOffset"),
-         width = settings.getNumber("Width"),
-         height = settings.getNumber("Height");
+  double left = settings.getNumber("XOffset"), top = settings.getNumber("YOffset"),
+         width = settings.getNumber("Width"), height = settings.getNumber("Height");
 
-  if (std::isnan(left))
-    left = 0;
-  if (std::isnan(top))
-    top = 0;
-  if (std::isnan(res_dpi))
-    res_dpi = 300;
+  if (std::isnan(left)) left = 0;
+  if (std::isnan(top)) top = 0;
+  if (std::isnan(res_dpi)) res_dpi = 300;
 
   double px_per_unit = 1.0;
   std::string units = settings.getString("ContentRegionUnits");
-  if (units == "escl:ThreeHundredthsOfInches")
-    px_per_unit = res_dpi / 300.0;
+  if (units == "escl:ThreeHundredthsOfInches") px_per_unit = res_dpi / 300.0;
 
   mLeft_px = left * px_per_unit;
   mTop_px = top * px_per_unit;
@@ -250,10 +196,8 @@ ScanJob::Private::init(const ScanSettingsXml& settings, bool autoselectFormat, c
   mHeight_px = height * px_per_unit;
   mRes_dpi = res_dpi;
 
-  if (std::isnan(mWidth_px))
-    mWidth_px = mpScanner->maxWidthPx300dpi();
-  if (std::isnan(mHeight_px))
-    mHeight_px = mpScanner->maxHeightPx300dpi();
+  if (std::isnan(mWidth_px)) mWidth_px = mpScanner->maxWidthPx300dpi();
+  if (std::isnan(mHeight_px)) mHeight_px = mpScanner->maxHeightPx300dpi();
 
   mBitDepth = 0;
 
@@ -282,19 +226,17 @@ ScanJob::Private::init(const ScanSettingsXml& settings, bool autoselectFormat, c
   }
 
   mDocumentFormat = settings.getString("DocumentFormat");
-  if (mDocumentFormat.empty())
-      mDocumentFormat = settings.getString("DocumentFormatExt");
+  if (mDocumentFormat.empty()) mDocumentFormat = settings.getString("DocumentFormatExt");
   if (!mDocumentFormat.empty())
-     std::clog << "document format requested: " << mDocumentFormat << "\n";
+    std::clog << "document format requested: " << mDocumentFormat << "\n";
   else if (mIntent == "Document" || mIntent == "Text")
-     mDocumentFormat = HttpServer::MIME_TYPE_PDF;
+    mDocumentFormat = HttpServer::MIME_TYPE_PDF;
   else if (mIntent == "Photo")
-     mDocumentFormat = HttpServer::MIME_TYPE_JPEG;
+    mDocumentFormat = HttpServer::MIME_TYPE_JPEG;
 
   // If Apple Airscan requests JPEG, we send PNG instead because it is
   // lossless and supports all bit depths.
-  if (mDocumentFormat.empty() || autoselectFormat)
-    mDocumentFormat = HttpServer::MIME_TYPE_PNG;
+  if (mDocumentFormat.empty() || autoselectFormat) mDocumentFormat = HttpServer::MIME_TYPE_PNG;
   std::clog << "document format used: " << mDocumentFormat << "\n";
 
   mImagesCompleted = 0;
@@ -309,21 +251,19 @@ ScanJob::Private::init(const ScanSettingsXml& settings, bool autoselectFormat, c
   if (inputSource == "Platen") {
     mScanSource = mpScanner->platenSourceName();
     mKind = single;
-  }
-  else if (inputSource == "Feeder") {
+  } else if (inputSource == "Feeder") {
     mDuplex = settings.getNumber("Duplex") == 1.0;
     if (mDuplex) {
-        mScanSource = mpScanner->adfDuplexSourceName();
+      mScanSource = mpScanner->adfDuplexSourceName();
     } else {
-        mScanSource = mpScanner->adfSimplexSourceName();
+      mScanSource = mpScanner->adfSimplexSourceName();
     }
     double concatIfPossible = settings.getNumber("ConcatIfPossible");
     if (concatIfPossible == 1.0 && mDocumentFormat == HttpServer::MIME_TYPE_PDF)
       mKind = adfConcat;
     else
       mKind = adfSingle;
-  }
-  else {
+  } else {
     err = PWG_INVALID_SCAN_TICKET;
     std::cerr << "unknown input source: " << inputSource << std::endl;
   }
@@ -340,9 +280,7 @@ ScanJob::Private::init(const ScanSettingsXml& settings, bool autoselectFormat, c
   }
 }
 
-const char*
-ScanJob::Private::kindString() const
-{
+const char* ScanJob::Private::kindString() const {
   switch (mKind.load()) {
     case single:
       return "single";
@@ -354,16 +292,13 @@ ScanJob::Private::kindString() const
   return "unknown";
 }
 
-void
-ScanJob::Private::applyDeviceOptions(const OptionsFile::Options& options)
-{
+void ScanJob::Private::applyDeviceOptions(const OptionsFile::Options& options) {
   mDeviceOptions = options;
   mGammaTable.clear();
   if (!mColorScan) {
     std::clog << "using grayscale gamma of " << options.gray_gamma << std::endl;
     initGammaTable(options.gray_gamma);
-  }
-  else {
+  } else {
     std::clog << "using color gamma of " << options.color_gamma << std::endl;
     initGammaTable(options.color_gamma);
   }
@@ -371,20 +306,16 @@ ScanJob::Private::applyDeviceOptions(const OptionsFile::Options& options)
     if (options.synthesize_gray) {
       std::clog << "synthesizing grayscale from RGB" << std::endl;
       mColorMode = mpScanner->colorScanModeName();
-    }
-    else {
+    } else {
       std::clog << "requesting grayscale from backend" << std::endl;
       mColorMode = mpScanner->grayScanModeName();
     }
   }
 }
 
-void
-ScanJob::Private::initGammaTable(float gammaVal)
-{
+void ScanJob::Private::initGammaTable(float gammaVal) {
   mGammaTable.clear();
-  if (gammaVal == 1.0f)
-    return;
+  if (gammaVal == 1.0f) return;
   int size = 1L << mBitDepth;
   float scale = 1.0f / (size - 1), invscale = size - 1;
   mGammaTable.resize(size);
@@ -397,35 +328,27 @@ ScanJob::Private::initGammaTable(float gammaVal)
   }
 }
 
-void
-ScanJob::Private::applyGamma(std::vector<char>& ioData)
-{
-  union
-  {
+void ScanJob::Private::applyGamma(std::vector<char>& ioData) {
+  union {
     char* c;
     uint8_t* b;
     uint16_t* s;
-  } data = { ioData.data() };
+  } data = {ioData.data()};
   if (mGammaTable.size() == 1 << 8) {
-    for (size_t i = 0; i < ioData.size(); ++i)
-      data.b[i] = mGammaTable[data.b[i]];
+    for (size_t i = 0; i < ioData.size(); ++i) data.b[i] = mGammaTable[data.b[i]];
   } else if (mGammaTable.size() == 1 << 16) {
-    for (size_t i = 0; i < ioData.size() / 2; ++i)
-      data.s[i] = mGammaTable[data.s[i]];
+    for (size_t i = 0; i < ioData.size() / 2; ++i) data.s[i] = mGammaTable[data.s[i]];
   }
 }
 
-void
-ScanJob::Private::synthesizeGray(std::vector<char>& ioData)
-{
+void ScanJob::Private::synthesizeGray(std::vector<char>& ioData) {
   // sRGB spectral weightings
   static const float rweight = 0.2126f, gweight = 0.7152f, bweight = 0.0722f;
-  union
-  {
+  union {
     char* c;
     uint8_t* b;
     uint16_t* s;
-  } in = { ioData.data() }, out = in;
+  } in = {ioData.data()}, out = in;
   if (mBitDepth == 8) {
     while (in.c < ioData.data() + ioData.size()) {
       float f = rweight * in.b[0] + gweight * in.b[1] + bweight * in.b[2];
@@ -447,9 +370,7 @@ ScanJob::Private::synthesizeGray(std::vector<char>& ioData)
   }
 }
 
-const char*
-ScanJob::Private::statusString() const
-{
+const char* ScanJob::Private::statusString() const {
   switch (mState.load()) {
     case ScanJob::aborted:
       return "Aborted";
@@ -465,15 +386,11 @@ ScanJob::Private::statusString() const
   return "";
 }
 
-bool
-ScanJob::Private::atomicTransition(State from, State to)
-{
+bool ScanJob::Private::atomicTransition(State from, State to) {
   return mState.compare_exchange_strong(from, to);
 }
 
-void
-ScanJob::Private::updateStatus(SANE_Status status)
-{
+void ScanJob::Private::updateStatus(SANE_Status status) {
   mAdfStatus = SANE_STATUS_GOOD;
   switch (status) {
     case SANE_STATUS_GOOD:
@@ -505,22 +422,22 @@ ScanJob::Private::updateStatus(SANE_Status status)
       mStateReason = PWG_JOB_CANCELED_BY_USER;
       break;
     case SANE_STATUS_EOF:
-      switch(mKind.load()) {
-      case single:
+      switch (mKind.load()) {
+        case single:
           if (mImagesCompleted > 0) {
-              mState = completed;
-              mStateReason = PWG_JOB_COMPLETED_SUCCESSFULLY;
+            mState = completed;
+            mStateReason = PWG_JOB_COMPLETED_SUCCESSFULLY;
           } else {
             mState = pending;
             mStateReason = PWG_NONE;
           }
           closeSession();
           break;
-      case adfSingle:
+        case adfSingle:
           mState = pending;
           mStateReason = PWG_NONE;
           break;
-      case adfConcat:
+        case adfConcat:
           updateStatus(mpSession->start().status());
           break;
       }
@@ -540,13 +457,10 @@ ScanJob::Private::updateStatus(SANE_Status status)
       mState = aborted;
       mStateReason = PWG_ERRORS_DETECTED;
   }
-  if (mState == aborted)
-    closeSession();
+  if (mState == aborted) closeSession();
 }
 
-void
-ScanJob::writeJobInfoXml(std::ostream& os) const
-{
+void ScanJob::writeJobInfoXml(std::ostream& os) const {
   os << "<scan:JobInfo>\r\n"
         "<pwg:JobUri>"
      << uri()
@@ -571,15 +485,9 @@ ScanJob::writeJobInfoXml(std::ostream& os) const
         "</scan:JobInfo>\r\n";
 }
 
-bool
-ScanJob::beginTransfer()
-{
-  struct : WorkerThread::Callable
-  {
-    void onCall() override
-    {
-      result = p->beginTransfer();
-    }
+bool ScanJob::beginTransfer() {
+  struct : WorkerThread::Callable {
+    void onCall() override { result = p->beginTransfer(); }
     bool result = false;
     Private* p = nullptr;
   } functionCall;
@@ -588,37 +496,28 @@ ScanJob::beginTransfer()
   return functionCall.result;
 }
 
-bool
-ScanJob::Private::beginTransfer()
-{
-  if(!atomicTransition(pending, processing))
-    return false;
+bool ScanJob::Private::beginTransfer() {
+  if (!atomicTransition(pending, processing)) return false;
   bool ok = true;
   if (!mpSession) {
     ok = (openSession() == SANE_STATUS_GOOD);
-    if (ok)
-      mpSession->dump_options();
+    if (ok) mpSession->dump_options();
   }
   startSession();
   ok = isProcessing();
-  if (!ok)
-    closeSession();
+  if (!ok) closeSession();
   return ok;
 }
 
-SANE_Status
-ScanJob::Private::openSession()
-{
+SANE_Status ScanJob::Private::openSession() {
   SANE_Status status = SANE_STATUS_GOOD;
   assert(!mpSession);
   mpSession = mpScanner->open();
   status = mpSession->status();
   if (status == SANE_STATUS_GOOD) {
-
     auto& opt = mpSession->options();
 
-    for (const auto& option : mDeviceOptions.sane_options)
-      opt[option.first] = option.second;
+    for (const auto& option : mDeviceOptions.sane_options) opt[option.first] = option.second;
 
     // The order in which options are set matters for some backends.
     opt[SANE_NAME_SCAN_SOURCE] = mScanSource;
@@ -636,49 +535,35 @@ ScanJob::Private::openSession()
       case SANE_UNIT_PIXEL:
         break;
       case SANE_UNIT_MM:
-        for (auto p : { &left, &right, &top, &bottom })
-          *p *= 25.4 / mRes_dpi;
+        for (auto p : {&left, &right, &top, &bottom}) *p *= 25.4 / mRes_dpi;
         break;
       default:
         ok = false;
     }
-    for (auto p : { &left, &right, &top, &bottom })
-      *p = ::floor(*p + 0.5);
+    for (auto p : {&left, &right, &top, &bottom}) *p = ::floor(*p + 0.5);
     opt[SANE_NAME_SCAN_TL_X] = left;
     opt[SANE_NAME_SCAN_TL_Y] = top;
     opt[SANE_NAME_SCAN_BR_X] = right;
     opt[SANE_NAME_SCAN_BR_Y] = bottom;
 
-    if (!ok)
-      status = SANE_STATUS_INVAL;
+    if (!ok) status = SANE_STATUS_INVAL;
   }
   return status;
 }
 
-void
-ScanJob::Private::startSession()
-{
+void ScanJob::Private::startSession() {
   SANE_Status status = mpSession->start().status();
   updateStatus(status);
 }
 
-void
-ScanJob::Private::closeSession()
-{
-  if (mpSession)
-    mpSession->cancel();
+void ScanJob::Private::closeSession() {
+  if (mpSession) mpSession->cancel();
   mpSession.reset();
 }
 
-ScanJob&
-ScanJob::finishTransfer(std::ostream& os)
-{
-  struct : WorkerThread::Callable
-  {
-    void onCall() override
-    {
-      p->finishTransfer(*pOs);
-    }
+ScanJob& ScanJob::finishTransfer(std::ostream& os) {
+  struct : WorkerThread::Callable {
+    void onCall() override { p->finishTransfer(*pOs); }
     Private* p = nullptr;
     std::ostream* pOs = nullptr;
   } functionCall;
@@ -688,9 +573,7 @@ ScanJob::finishTransfer(std::ostream& os)
   return *this;
 }
 
-void
-ScanJob::Private::finishTransfer(std::ostream& os)
-{
+void ScanJob::Private::finishTransfer(std::ostream& os) {
   mLastActive = ::time(nullptr);
   std::shared_ptr<ImageEncoder> pEncoder;
   if (isProcessing()) {
@@ -701,12 +584,11 @@ ScanJob::Private::finishTransfer(std::ostream& os)
       pEncoder.reset(jpegEncoder);
     } else if (mDocumentFormat == HttpServer::MIME_TYPE_PDF) {
       auto pdfEncoder = new PdfEncoder;
-#if 0 // "Title" does not conform to pdf/raster
+#if 0  // "Title" does not conform to pdf/raster
       pdfEncoder->documentInfo()["Title"] =
         mUuid + "/" + sanecpp::dtostr_c(mImagesCompleted);
 #endif
-      pdfEncoder->documentInfo()["Creator"] =
-        mpScanner->makeAndModel() + " (SANE)";
+      pdfEncoder->documentInfo()["Creator"] = mpScanner->makeAndModel() + " (SANE)";
       pdfEncoder->documentInfo()["Producer"] = "AirSane Server";
       pEncoder.reset(pdfEncoder);
     } else if (mDocumentFormat == HttpServer::MIME_TYPE_PNG) {
@@ -730,18 +612,16 @@ ScanJob::Private::finishTransfer(std::ostream& os)
     pEncoder->setDestination(&os);
     if (!mColorScan && mDeviceOptions.synthesize_gray) {
       if (pEncoder->bytesPerLine() != p->bytes_per_line / 3) {
-            std::cerr << __FILE__ << ", line " << __LINE__
-                      << ": encoder bytesPerLine (" << pEncoder->bytesPerLine()
-                      << ") differs from SANE bytes_per_line/3 ("
-                      << p->bytes_per_line / 3 << ")" << std::endl;
-            mState = aborted;
-            mStateReason = PWG_ERRORS_DETECTED;
+        std::cerr << __FILE__ << ", line " << __LINE__ << ": encoder bytesPerLine ("
+                  << pEncoder->bytesPerLine() << ") differs from SANE bytes_per_line/3 ("
+                  << p->bytes_per_line / 3 << ")" << std::endl;
+        mState = aborted;
+        mStateReason = PWG_ERRORS_DETECTED;
       }
     } else if (pEncoder->bytesPerLine() != p->bytes_per_line) {
-      std::cerr << __FILE__ << ", line " << __LINE__
-                << ": encoder bytesPerLine (" << pEncoder->bytesPerLine()
-                << ") differs from SANE bytes_per_line (" << p->bytes_per_line
-                << ")" << std::endl;
+      std::cerr << __FILE__ << ", line " << __LINE__ << ": encoder bytesPerLine ("
+                << pEncoder->bytesPerLine() << ") differs from SANE bytes_per_line ("
+                << p->bytes_per_line << ")" << std::endl;
       mState = aborted;
       mStateReason = PWG_ERRORS_DETECTED;
     }
@@ -756,8 +636,7 @@ ScanJob::Private::finishTransfer(std::ostream& os)
       mLastActive = ::time(nullptr);
       if (status == SANE_STATUS_GOOD) {
         applyGamma(buffer);
-        if (!mColorScan && mDeviceOptions.synthesize_gray)
-          synthesizeGray(buffer);
+        if (!mColorScan && mDeviceOptions.synthesize_gray) synthesizeGray(buffer);
         try {
           pEncoder->writeLine(buffer.data());
           ++linesWritten;
@@ -783,77 +662,36 @@ ScanJob::Private::finishTransfer(std::ostream& os)
       }
     }
   }
-  if (pEncoder)
-      pEncoder->endDocument();
+  if (pEncoder) pEncoder->endDocument();
   mLastActive = ::time(nullptr);
 }
 
-ScanJob&
-ScanJob::cancel()
-{
+ScanJob& ScanJob::cancel() {
   p->mState = canceled;
   p->mStateReason = PWG_JOB_CANCELED_BY_USER;
   p->closeSession();
   return *this;
 }
 
-ScanJob::State
-ScanJob::state() const
-{
-  return p->mState;
-}
+ScanJob::State ScanJob::state() const { return p->mState; }
 
-std::string
-ScanJob::statusString() const
-{
-  return p->statusString();
-}
+std::string ScanJob::statusString() const { return p->statusString(); }
 
-std::string
-ScanJob::statusReason() const
-{
-  return std::string(p->mStateReason);
-}
+std::string ScanJob::statusReason() const { return std::string(p->mStateReason); }
 
-bool
-ScanJob::isPending() const
-{
-  return p->isPending();
-}
+bool ScanJob::isPending() const { return p->isPending(); }
 
-bool
-ScanJob::isProcessing() const
-{
-  return p->isProcessing();
-}
+bool ScanJob::isProcessing() const { return p->isProcessing(); }
 
-bool
-ScanJob::isFinished() const
-{
-  return p->isFinished();
-}
+bool ScanJob::isFinished() const { return p->isFinished(); }
 
-bool
-ScanJob::isAborted() const
-{
-  return p->isAborted();
-}
+bool ScanJob::isAborted() const { return p->isAborted(); }
 
-bool
-ScanJob::Private::isPending() const
-{
-  return mState == pending;
-}
+bool ScanJob::Private::isPending() const { return mState == pending; }
 
-bool
-ScanJob::Private::isProcessing() const
-{
-  return mState == processing;
-}
+bool ScanJob::Private::isProcessing() const { return mState == processing; }
 
-bool
-ScanJob::Private::isFinished() const
-{
+bool ScanJob::Private::isFinished() const {
   switch (mState.load()) {
     case pending:
     case processing:
@@ -866,8 +704,4 @@ ScanJob::Private::isFinished() const
   return true;
 }
 
-bool
-ScanJob::Private::isAborted() const
-{
-  return mState == aborted;
-}
+bool ScanJob::Private::isAborted() const { return mState == aborted; }

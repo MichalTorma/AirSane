@@ -24,19 +24,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 class Scanner;
 
-class OptionsFile
-{
+class OptionsFile {
   OptionsFile(const OptionsFile&) = delete;
   OptionsFile& operator=(const OptionsFile&) = delete;
 
-public:
+ public:
   explicit OptionsFile(const std::string& fileName);
   ~OptionsFile();
   std::string path() const;
-  
+
   typedef std::vector<std::pair<std::string, std::string>> RawOptions;
-  struct Options
-  {
+  struct Options {
     std::string icon, note;
     double gray_gamma = 1.0, color_gamma = 1.0;
     bool synthesize_gray = false;
@@ -44,10 +42,10 @@ public:
   };
   Options scannerOptions(const Scanner*) const;
 
-private:
+ private:
   std::string mFileName;
   RawOptions mGlobalOptions;
   std::vector<std::pair<std::string, RawOptions>> mDeviceOptions;
 };
 
-#endif // OPTIONS_FILE_H
+#endif  // OPTIONS_FILE_H

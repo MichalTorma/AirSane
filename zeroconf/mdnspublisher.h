@@ -19,17 +19,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef MDNSPUBLISHER_H
 #define MDNSPUBLISHER_H
 
+#include <cstdint>
 #include <mutex>
 #include <string>
 #include <vector>
-#include <cstdint>
 
-class MdnsPublisher
-{
+class MdnsPublisher {
   MdnsPublisher(const MdnsPublisher&) = delete;
   MdnsPublisher& operator=(const MdnsPublisher&) = delete;
 
-public:
+ public:
   MdnsPublisher();
   ~MdnsPublisher();
 
@@ -40,21 +39,15 @@ public:
   bool announce(Service*);
   bool unannounce(Service*);
 
-public:
-  class Service
-  {
-  public:
-    explicit Service(MdnsPublisher* p)
-      : mpPublisher(p)
-      , mIfIndex(-1)
-      , mPort(0)
-    {}
+ public:
+  class Service {
+   public:
+    explicit Service(MdnsPublisher* p) : mpPublisher(p), mIfIndex(-1), mPort(0) {}
     ~Service() { unannounce(); }
 
     typedef std::vector<std::pair<std::string, std::string>> TxtRecord;
 
-    Service& setType(const std::string& s)
-    {
+    Service& setType(const std::string& s) {
       mType = s;
       return *this;
     }
@@ -62,14 +55,12 @@ public:
     Service& setName(const std::string&);
     std::string name() const;
 
-    Service& setInterfaceIndex(int i)
-    {
+    Service& setInterfaceIndex(int i) {
       mIfIndex = i;
       return *this;
     }
     int interfaceIndex() const { return mIfIndex; }
-    Service& setPort(uint16_t p)
-    {
+    Service& setPort(uint16_t p) {
       mPort = p;
       return *this;
     }
@@ -82,7 +73,7 @@ public:
     bool announce() { return mpPublisher->announce(this); }
     bool unannounce() { return mpPublisher->unannounce(this); }
 
-  private:
+   private:
     MdnsPublisher* mpPublisher;
     std::string mType, mName;
     int mIfIndex;
@@ -91,9 +82,9 @@ public:
     mutable std::mutex mNameMutex;
   };
 
-private:
+ private:
   struct Private;
   Private* p;
 };
 
-#endif // MDNSPUBLISHER_H
+#endif  // MDNSPUBLISHER_H

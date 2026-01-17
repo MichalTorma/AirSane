@@ -17,20 +17,18 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "errorpage.h"
-#include "httpserver.h"
+
 #include <sstream>
 
-ErrorPage::ErrorPage(int errorCode)
-  : mErrorCode(errorCode)
-{
+#include "httpserver.h"
+
+ErrorPage::ErrorPage(int errorCode) : mErrorCode(errorCode) {
   std::ostringstream oss;
   oss << "Error " << errorCode << ": " << HttpServer::statusReason(errorCode);
   setTitle(oss.str());
 }
 
-void
-ErrorPage::onRender()
-{
+void ErrorPage::onRender() {
   std::ostringstream oss;
   oss << request();
   out() << heading(1).addText(title()) << std::endl

@@ -19,13 +19,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef ACCESS_FILE_H
 #define ACCESS_FILE_H
 
-#include "web/httpserver.h"
 #include <string>
 #include <vector>
 
-class AccessFile
-{
-public:
+#include "web/httpserver.h"
+
+class AccessFile {
+ public:
   AccessFile() = default;
   AccessFile(const AccessFile&) = default;
   AccessFile& operator=(const AccessFile&) = default;
@@ -37,17 +37,16 @@ public:
   bool isAllowed(const HttpServer::Sockaddr&) const;
 
  private:
-  class Entry
-  {
+  class Entry {
    public:
     enum { NoMatch, Allow, Deny };
     int match(const HttpServer::Sockaddr&) const;
     std::istream& parse(std::istream&);
+
    private:
     int mKind;
     std::string mRule;
-    struct Network
-    {
+    struct Network {
       HttpServer::Sockaddr address, mask;
     };
     std::vector<Network> mNetworks;
@@ -56,4 +55,4 @@ public:
   std::string mErrors;
 };
 
-#endif // ACCESS_FILE_H
+#endif  // ACCESS_FILE_H

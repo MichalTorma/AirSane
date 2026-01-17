@@ -28,16 +28,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 class ScanJob;
 
-class Scanner
-{
+class Scanner {
   Scanner(const Scanner&) = delete;
   Scanner& operator=(const Scanner&) = delete;
 
-public:
+ public:
   explicit Scanner(const sanecpp::device_info&);
   ~Scanner();
   bool initWithOptions(const OptionsFile&);
-
 
   const char* error() const;
   std::string statusString() const;
@@ -59,7 +57,7 @@ public:
 
   const std::string& iconFile() const;
   const std::string& note() const;
-  
+
   const std::vector<std::string>& documentFormats() const;
   const std::vector<std::string>& txtColorSpaces() const;
   const std::vector<std::string>& colorModes() const;
@@ -83,9 +81,8 @@ public:
   std::string grayScanModeName() const;
   std::string colorScanModeName() const;
 
-  std::shared_ptr<ScanJob> createJobFromScanSettingsXml(
-    const std::string&,
-    bool autoselectFormat = false);
+  std::shared_ptr<ScanJob> createJobFromScanSettingsXml(const std::string&,
+                                                        bool autoselectFormat = false);
   std::shared_ptr<ScanJob> getJob(const std::string& uuid);
   bool cancelJob(const std::string&);
   int purgeJobs(int maxAgeSeconds);
@@ -99,9 +96,9 @@ public:
   void writeScannerCapabilitiesXml(std::ostream&) const;
   void writeScannerStatusXml(std::ostream&) const;
 
-private:
+ private:
   struct Private;
   Private* p;
 };
 
-#endif // SCANNER_H
+#endif  // SCANNER_H

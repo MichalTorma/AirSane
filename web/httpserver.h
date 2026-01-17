@@ -19,21 +19,20 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef HTTPSERVER_H
 #define HTTPSERVER_H
 
-#include "basic/dictionary.h"
-#include <iostream>
-#include <string>
-#include <cstdint>
-
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <netinet/in.h>
 
-class HttpServer
-{
-public:
-  enum
-  {
+#include <cstdint>
+#include <iostream>
+#include <string>
+
+#include "basic/dictionary.h"
+
+class HttpServer {
+ public:
+  enum {
     HTTP_OK = 200,
     HTTP_CREATED = 201,
 
@@ -46,19 +45,17 @@ public:
   };
   static std::string statusReason(int status);
   static const char *HTTP_GET, *HTTP_POST, *HTTP_DELETE;
-  static const char *HTTP_HEADER_CONTENT_LENGTH, *HTTP_HEADER_CONTENT_TYPE,
-    *HTTP_HEADER_LOCATION, *HTTP_HEADER_ACCEPT, *HTTP_HEADER_USER_AGENT,
-    *HTTP_HEADER_REFERER, *HTTP_HEADER_TRANSFER_ENCODING,
-    *HTTP_HEADER_CONNECTION, *HTTP_HEADER_CONTENT_DISPOSITION,
-    *HTTP_HEADER_REFRESH;
+  static const char *HTTP_HEADER_CONTENT_LENGTH, *HTTP_HEADER_CONTENT_TYPE, *HTTP_HEADER_LOCATION,
+      *HTTP_HEADER_ACCEPT, *HTTP_HEADER_USER_AGENT, *HTTP_HEADER_REFERER,
+      *HTTP_HEADER_TRANSFER_ENCODING, *HTTP_HEADER_CONNECTION, *HTTP_HEADER_CONTENT_DISPOSITION,
+      *HTTP_HEADER_REFRESH;
 
   static const char *MIME_TYPE_JPEG, *MIME_TYPE_PDF, *MIME_TYPE_PNG;
   static std::string fileExtension(const std::string& mimeType);
 
   static std::string toRelativeUrl(const std::string&);
 
-  typedef union
-  {
+  typedef union {
     sockaddr sa;
     sockaddr_in in;
     sockaddr_in6 in6;
@@ -75,11 +72,7 @@ public:
   HttpServer& setInterfaceName(const std::string&);
   const std::string& interfaceName() const;
   HttpServer& setInterfaceIndex(int);
-  enum
-  {
-    anyInterface = -1,
-    invalidInterface = 0
-  };
+  enum { anyInterface = -1, invalidInterface = 0 };
   int interfaceIndex() const;
   HttpServer& setPort(uint16_t port);
   uint16_t port() const;
@@ -95,9 +88,8 @@ public:
   int terminationStatus() const;
   int lastError() const;
 
-  class Request
-  {
-  public:
+  class Request {
+   public:
     explicit Request(std::istream&);
     bool isValid() const { return mValid; }
     const std::string& uri() const { return mUri; }
@@ -113,7 +105,7 @@ public:
     std::string& logInfo() { return mLogInfo; }
     std::ostream& print(std::ostream&) const;
 
-  private:
+   private:
     std::istream& mStream;
     bool mValid;
     std::string mUri, mMethod, mProtocol, mLogInfo;
@@ -122,13 +114,11 @@ public:
     mutable Dictionary mFormData;
   };
 
-  class Response
-  {
-  public:
+  class Response {
+   public:
     explicit Response(std::ostream&);
     ~Response();
-    Response& setStatus(int status)
-    {
+    Response& setStatus(int status) {
       mStatus = status;
       return *this;
     }
@@ -142,7 +132,7 @@ public:
     std::streampos contentBegin() const { return mContentBegin; }
     std::ostream& print(std::ostream&) const;
 
-  private:
+   private:
     std::ostream& sendHeaders();
     std::ostream& mStream;
     bool mSent;
@@ -153,23 +143,19 @@ public:
     Chunkstream* mpChunkstream;
   };
 
-protected:
+ protected:
   virtual void onRequest(const Request&, Response&);
 
-private:
+ private:
   struct Private;
   Private* p;
 };
 
-inline std::ostream&
-operator<<(std::ostream& os, const HttpServer::Request& r)
-{
+inline std::ostream& operator<<(std::ostream& os, const HttpServer::Request& r) {
   return r.print(os);
 }
-inline std::ostream&
-operator<<(std::ostream& os, const HttpServer::Response& r)
-{
+inline std::ostream& operator<<(std::ostream& os, const HttpServer::Response& r) {
   return r.print(os);
 }
 
-#endif // HTTPSERVER_H
+#endif  // HTTPSERVER_H

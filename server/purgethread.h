@@ -21,18 +21,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "server.h"
 
-class PurgeThread
-{
+class PurgeThread {
   PurgeThread(const Scanner&) = delete;
   PurgeThread& operator=(const PurgeThread&) = delete;
 
-public:
+ public:
   PurgeThread(const ScannerList&, int sleepDuration, int maxTime);
   ~PurgeThread();
 
-private:
+ private:
   struct Private;
   Private* p;
 };
 
-#endif // PURGETHREAD_H
+#endif  // PURGETHREAD_H
