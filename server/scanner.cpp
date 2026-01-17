@@ -487,9 +487,30 @@ const char* Scanner::Private::init2(const OptionsFile& optionsfile) {
     }
   }
 
-  if (sourceIsForced && std::find(sources.begin(), sources.end(), forcedSource) != sources.end()) {
-    std::clog << "Forcing Platen input source to use SANE source: " << forcedSource << std::endl;
-    flatbedName = forcedSource;
+  if (sourceIsForced) {
+    std::clog << "User forced source in options: '" << forcedSource << "'" << std::endl;
+    std::clog << "Available sources: ";
+    for (const auto& s : sources) std::clog << "'" << s << "' ";
+    std::clog << std::endl;
+
+    bool found = false;
+    if (std::find(sources.begin(), sources.end(), forcedSource) != sources.end()) {
+      flatbedName = forcedSource;
+      found = true;
+    } else if ((forcedSource == "Transparency Unit" || forcedSource == "Transparency") &&
+               !transparencyUnitName.empty()) {
+      std::clog << "Forced source '" << forcedSource << "' matches detected transparency unit '"
+                << transparencyUnitName << "'" << std::endl;
+      flatbedName = transparencyUnitName;
+      found = true;
+    }
+
+    if (found) {
+      std::clog << "Forcing Platen input source to use SANE source: " << flatbedName << std::endl;
+    } else {
+      std::clog << "Forced source '" << forcedSource << "' not found in available sources."
+                << std::endl;
+    }
   }
 
   if (!flatbedName.empty()) {
