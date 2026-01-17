@@ -488,6 +488,7 @@ const char* Scanner::Private::init2(const OptionsFile& optionsfile) {
   }
 
   if (sourceIsForced && std::find(sources.begin(), sources.end(), forcedSource) != sources.end()) {
+    std::clog << "Forcing Platen input source to use SANE source: " << forcedSource << std::endl;
     flatbedName = forcedSource;
   }
 
@@ -497,6 +498,7 @@ const char* Scanner::Private::init2(const OptionsFile& optionsfile) {
     mpPlaten = new Private::InputSource(this);
     err = mpPlaten->init(opt);
     if (!err) {
+      std::clog << "Initialized Platen with source: " << mpPlaten->mSourceName << std::endl;
       mpPlaten->mSupportedIntents = std::vector<std::string>({
           "Preview",
           "TextAndGraphic",
