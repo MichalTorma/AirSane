@@ -479,8 +479,15 @@ const char* Scanner::Private::init2(const OptionsFile& optionsfile) {
 
   // If source is forced in options, map it to Platen as well (so eSCL clients use it)
   std::string forcedSource = opt[SANE_NAME_SCAN_SOURCE].string_value();
-  if (mDeviceOptions.sane_options.count(SANE_NAME_SCAN_SOURCE) &&
-      std::find(sources.begin(), sources.end(), forcedSource) != sources.end()) {
+  bool sourceIsForced = false;
+  for (const auto& kv : mDeviceOptions.sane_options) {
+    if (kv.first == SANE_NAME_SCAN_SOURCE) {
+      sourceIsForced = true;
+      break;
+    }
+  }
+
+  if (sourceIsForced && std::find(sources.begin(), sources.end(), forcedSource) != sources.end()) {
     flatbedName = forcedSource;
   }
 
