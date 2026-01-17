@@ -523,15 +523,22 @@ SANE_Status ScanJob::Private::openSession() {
     for (const auto& option : mDeviceOptions.sane_options) opt[option.first] = option.second;
 
     // The order in which options are set matters for some backends.
-    std::clog << "Setting SANE source to: " << mScanSource << " with resolution: " << mRes_dpi
+    if (mRes_dpi < mpScanner->minResDpi()) {
+      std::cerr << "Requested resolution " << mRes_dpi << " is below minimum "
+                << mpScanner->minResDpi() << ", clamping." << std::endl;
+      mRes_dpi = mpScanner->minResDpi();
+    }
+    std::cerr << "Setting SANE source to: " << mScanSource << " with resolution: " << mRes_dpi
               << std::endl;
     opt[SANE_NAME_SCAN_SOURCE] = mScanSource;
     opt[SANE_NAME_SCAN_MODE] = mColorMode;
     opt[SANE_NAME_BIT_DEPTH] = mBitDepth;
     bool ok = opt[SANE_NAME_SCAN_RESOLUTION].set_numeric_value(mRes_dpi);
-    if (!ok)
+    if (!ok) {
+      std::cerr << "Failed to set resolution " << mRes_dpi << std::endl;
       ok = opt[SANE_NAME_SCAN_X_RESOLUTION].set_numeric_value(mRes_dpi) ||
            opt[SANE_NAME_SCAN_Y_RESOLUTION].set_numeric_value(mRes_dpi);
+    }
 
     double left = mLeft_px, top = mTop_px, right = mLeft_px + mWidth_px,
            bottom = mTop_px + mHeight_px;
