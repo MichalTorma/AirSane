@@ -34,6 +34,7 @@ static void onSignal(int signal) {
 
 int main(int argc, char** argv) {
   Server server(argc, argv);
+  sanecpp::log.rdbuf(std::cerr.rdbuf());
   pServer = &server;
   bool ok = true;
   struct sigaction action = {0};
