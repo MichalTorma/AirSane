@@ -729,6 +729,9 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
     if (isProcessing()) {
       ++mImagesCompleted;
       std::clog << "images completed: " << mImagesCompleted << std::endl;
+      // Update status first. NOTE: this might affect mpSession validity if logic changes,
+      // but in current code closeSession() is called later.
+      // However, parameters() access relies on sane_get_parameters which needs an open handle.
       updateStatus(status);
 
       // Software Crop Padding:
@@ -737,9 +740,15 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
       if (mSoftwareCropHeight > 0 && pEncoder->linesLeftInCurrentImage() > 0) {
         std::cerr << "Padding " << pEncoder->linesLeftInCurrentImage()
                   << " missing lines with white." << std::endl;
+
+        // Use encoder's expected bytes per line, which is safer than accessing mpSession
+        // (which might be in a closed/EOF state).
+        size_t padSize = pEncoder->bytesPerLine();
+
         // 0xFF is white for 8-bit/16-bit Grayscale/RGB.
-        std::vector<char> pad(mpSession->parameters()->bytes_per_line, (char)0xFF);
-        while (pEncoder->linesLeftInCurrentImage() > 0) {
+        std::vector<char> pad(padSize, (char)0xFF);
+
+        while (pEncoder->linesLeftInCurrentImage() > 0 && os.good()) {
           try {
             pEncoder->writeLine(pad.data());
           } catch (...) {
