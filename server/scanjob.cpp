@@ -182,6 +182,12 @@ void ScanJob::Private::init(const ScanSettingsXml& settings, bool autoselectForm
   double left = settings.getNumber("XOffset"), top = settings.getNumber("YOffset"),
          width = settings.getNumber("Width"), height = settings.getNumber("Height");
 
+  std::cerr << "ScanJob requested geometry (XML):" << std::endl;
+  std::cerr << "  XOffset=" << left << ", YOffset=" << top << std::endl;
+  std::cerr << "  Width=" << width << ", Height=" << height << std::endl;
+  std::cerr << "  XResolution=" << settings.getNumber("XResolution") << std::endl;
+  std::cerr << "  ContentRegionUnits=" << settings.getString("ContentRegionUnits") << std::endl;
+
   if (std::isnan(left)) left = 0;
   if (std::isnan(top)) top = 0;
   if (std::isnan(res_dpi)) res_dpi = 300;
