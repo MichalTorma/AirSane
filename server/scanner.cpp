@@ -599,6 +599,11 @@ const char* Scanner::Private::InputSource::init(const sanecpp::option_set& opt) 
   mMaxBits = 8;
   if (!opt[SANE_NAME_BIT_DEPTH].is_null()) mMaxBits = opt[SANE_NAME_BIT_DEPTH].max();
 
+  std::clog << "Initializing source '" << mSourceName << "', available SANE options:" << std::endl;
+  for (const auto& kv : opt) {
+    std::clog << "  Option: '" << kv.first << "'" << std::endl;
+  }
+
   // Defaults in case TL_X etc are not defined.
   // SANE requests that backends must work in the absence of those options.
   // We define a max height and width that allows for both US Letter and A4.
