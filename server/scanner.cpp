@@ -613,6 +613,11 @@ const char* Scanner::Private::InputSource::init(const sanecpp::option_set& opt) 
   const auto &tl_x = opt[SANE_NAME_SCAN_TL_X], &tl_y = opt[SANE_NAME_SCAN_TL_Y],
              &br_x = opt[SANE_NAME_SCAN_BR_X], &br_y = opt[SANE_NAME_SCAN_BR_Y];
 
+  const auto& opt_l = opt["l"];
+  const auto& opt_t = opt["t"];
+  const auto& opt_x = opt["x"];
+  const auto& opt_y = opt["y"];
+
   if (!tl_x.is_null() && !tl_y.is_null() && !br_x.is_null() && !br_y.is_null()) {
     unit = tl_x.unit();
     if (tl_y.unit() != unit || br_x.unit() != unit || br_y.unit() != unit)
@@ -624,6 +629,23 @@ const char* Scanner::Private::InputSource::init(const sanecpp::option_set& opt) 
     mMinHeight = std::max(0.0, br_y.min() - tl_y.max());
     mMaxHeight = br_y.max() - tl_y.min();
     mMaxPhysicalHeight = br_y.max();
+  } else if (!opt_x.is_null() && !opt_y.is_null()) {
+    // Fallback for backends using x/y (width/height), e.g. pixma
+    unit = opt_x.unit();
+    if (opt_y.unit() != unit) return "inconsistent unit in scan area parameters";
+    if (!opt_l.is_null() && opt_l.unit() != unit)
+      return "inconsistent unit in scan area parameters";
+    if (!opt_t.is_null() && opt_t.unit() != unit)
+      return "inconsistent unit in scan area parameters";
+
+    mMinWidth = opt_x.min();
+    mMaxWidth = opt_x.max();
+    mMaxPhysicalWidth = mMaxWidth;
+    mMinHeight = opt_y.min();
+    mMaxHeight = opt_y.max();
+    mMaxPhysicalHeight = mMaxHeight;
+    std::clog << "using geometry options l=" << (opt_l.is_null() ? "N/A" : "yes")
+              << ", t=" << (opt_t.is_null() ? "N/A" : "yes") << ", x=yes, y=yes" << std::endl;
   }
 
   // eSCL expresses sizes in terms of pixels at 300 dpi
@@ -642,6 +664,7 @@ const char* Scanner::Private::InputSource::init(const sanecpp::option_set& opt) 
   for (auto pValue :
        {&mMinWidth, &mMaxWidth, &mMinHeight, &mMaxHeight, &mMaxPhysicalWidth, &mMaxPhysicalHeight})
     *pValue = ::floor(*pValue * f + 0.5);
+
   return nullptr;
 }
 
