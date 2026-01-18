@@ -722,7 +722,6 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
         try {
           pEncoder->writeLine(buffer.data());
           ++linesWritten;
-          if (mSoftwareCropHeight > 0) linesSent++;
 
           if (!os.flush())
             throw std::runtime_error("Could not send data, state: " + describeStreamState(os));
