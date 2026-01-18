@@ -599,9 +599,9 @@ const char* Scanner::Private::InputSource::init(const sanecpp::option_set& opt) 
   mMaxBits = 8;
   if (!opt[SANE_NAME_BIT_DEPTH].is_null()) mMaxBits = opt[SANE_NAME_BIT_DEPTH].max();
 
-  std::clog << "Initializing source '" << mSourceName << "', available SANE options:" << std::endl;
+  std::cerr << "Initializing source '" << mSourceName << "', available SANE options:" << std::endl;
   for (const auto& kv : opt) {
-    std::clog << "  Option: '" << kv.first << "'" << std::endl;
+    std::cerr << "  Option: '" << kv.first << "'" << std::endl;
   }
 
   // Defaults in case TL_X etc are not defined.
@@ -649,7 +649,7 @@ const char* Scanner::Private::InputSource::init(const sanecpp::option_set& opt) 
     mMinHeight = opt_y.min();
     mMaxHeight = opt_y.max();
     mMaxPhysicalHeight = mMaxHeight;
-    std::clog << "using geometry options l=" << (opt_l.is_null() ? "N/A" : "yes")
+    std::cerr << "using geometry options l=" << (opt_l.is_null() ? "N/A" : "yes")
               << ", t=" << (opt_t.is_null() ? "N/A" : "yes") << ", x=yes, y=yes" << std::endl;
   }
 
