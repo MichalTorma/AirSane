@@ -624,16 +624,6 @@ const char* Scanner::Private::InputSource::init(const sanecpp::option_set& opt) 
   const auto& opt_y = opt["y"];
 
   if (!tl_x.is_null() && !tl_y.is_null() && !br_x.is_null() && !br_y.is_null()) {
-    std::cerr << "  Geometry options details:" << std::endl;
-    std::cerr << "    tl_x: min=" << tl_x.min() << ", max=" << tl_x.max() << " " << tl_x.unit()
-              << std::endl;
-    std::cerr << "    tl_y: min=" << tl_y.min() << ", max=" << tl_y.max() << " " << tl_y.unit()
-              << std::endl;
-    std::cerr << "    br_x: min=" << br_x.min() << ", max=" << br_x.max() << " " << br_x.unit()
-              << std::endl;
-    std::cerr << "    br_y: min=" << br_y.min() << ", max=" << br_y.max() << " " << br_y.unit()
-              << std::endl;
-
     unit = tl_x.unit();
     if (tl_y.unit() != unit || br_x.unit() != unit || br_y.unit() != unit)
       return "inconsistent unit in scan area parameters";
@@ -644,6 +634,15 @@ const char* Scanner::Private::InputSource::init(const sanecpp::option_set& opt) 
     mMinHeight = std::max(0.0, br_y.min() - tl_y.max());
     mMaxHeight = br_y.max() - tl_y.min();
     mMaxPhysicalHeight = br_y.max();
+
+    // Workaround for some scanners (like Canon 9000F) reporting slightly larger than A4 dimensions
+    // which might confuse some clients if not handled.
+    // If the scanner reports max dimensions that are very close to A4 (but slightly larger),
+    // we explicitly respect them as the physical maximums.
+    if (mMaxWidth > 210 && mMaxWidth < 220 && mMaxHeight > 297 && mMaxHeight < 300) {
+      if (tl_x.min() == 0) mMaxWidth = mMaxPhysicalWidth;
+      if (tl_y.min() == 0) mMaxHeight = mMaxPhysicalHeight;
+    }
   }
 
   // eSCL expresses sizes in terms of pixels at 300 dpi
