@@ -693,7 +693,6 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
     mLastActive = ::time(nullptr);
     // Zero-init buffer to avoid stale data
     std::vector<char> buffer(mpSession->parameters()->bytes_per_line, 0);
-    std::cerr << "Starting read loop (Safe Buffer Init)" << std::endl;
     SANE_Status status = SANE_STATUS_GOOD;
     while (status == SANE_STATUS_GOOD && os && isProcessing()) {
       status = mpSession->read(buffer).status();
