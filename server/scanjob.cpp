@@ -549,6 +549,21 @@ SANE_Status ScanJob::Private::openSession() {
     double left = mLeft_px, top = mTop_px, right = mLeft_px + mWidth_px,
            bottom = mTop_px + mHeight_px;
 
+    if (mScanSource == mpScanner->transparencyUnitSourceName()) {
+      // Workaround for Canon 9000F (and possibly others) backend vertical offset issues with TPU.
+      // We force a full-height scan and crop in software.
+      // We trust the horizontal cropping (X) but override Y.
+      mSoftwareCropTop = mTop_px;
+      mSoftwareCropHeight = mHeight_px;
+      top = 0;
+      bottom = mpScanner->maxHeightPx300dpi() * (25.4 / 300.0);  // Reset to physical max
+      std::cerr << "TPU Workaround: Forcing vertical scan from 0 to " << bottom << "mm"
+                << std::endl;
+    } else {
+      mSoftwareCropTop = 0;
+      mSoftwareCropHeight = 0;  // 0 means no software crop (use SANE dimensions)
+    }
+
     switch (opt[SANE_NAME_SCAN_TL_X].unit()) {
       case SANE_UNIT_PIXEL:
         break;
@@ -565,6 +580,12 @@ SANE_Status ScanJob::Private::openSession() {
     opt[SANE_NAME_SCAN_BR_Y] = bottom;
 
     if (!ok) status = SANE_STATUS_INVAL;
+
+    // After setting options, re-read them to confirm dimensions, but for TPU workaround
+    // we use our logical dimensions for the standard check.
+    if (mSoftwareCropHeight == 0) {
+      // Standard path
+    }
   }
   return status;
 }
@@ -625,7 +646,13 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
       pEncoder->setColorspace(ImageEncoder::Grayscale);
     auto p = mpSession->parameters();
     pEncoder->setWidth(p->pixels_per_line);
-    pEncoder->setHeight(p->lines);
+
+    // Apply software crop height if active
+    if (mSoftwareCropHeight > 0)
+      pEncoder->setHeight(mSoftwareCropHeight);
+    else
+      pEncoder->setHeight(p->lines);
+
     pEncoder->setBitDepth(p->depth);
     pEncoder->setDestination(&os);
     if (!mColorScan && mDeviceOptions.synthesize_gray) {
@@ -644,6 +671,10 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
       mStateReason = PWG_ERRORS_DETECTED;
     }
   }
+
+  int linesSkipped = 0;
+  int linesSent = 0;
+
   while (isProcessing()) {
     int linesWritten = 0;
     mLastActive = ::time(nullptr);
@@ -653,11 +684,24 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
       status = mpSession->read(buffer).status();
       mLastActive = ::time(nullptr);
       if (status == SANE_STATUS_GOOD) {
+        // Software Crop Logic
+        if (mSoftwareCropHeight > 0) {
+          if (linesSkipped < mSoftwareCropTop) {
+            linesSkipped++;
+            continue;  // Skip top lines
+          }
+          if (linesSent >= mSoftwareCropHeight) {
+            continue;  // Discard trailing lines
+          }
+        }
+
         applyGamma(buffer);
         if (!mColorScan && mDeviceOptions.synthesize_gray) synthesizeGray(buffer);
         try {
           pEncoder->writeLine(buffer.data());
           ++linesWritten;
+          if (mSoftwareCropHeight > 0) linesSent++;
+
           if (!os.flush())
             throw std::runtime_error("Could not send data, state: " + describeStreamState(os));
         } catch (const std::runtime_error& e) {
