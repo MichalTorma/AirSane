@@ -549,51 +549,48 @@ SANE_Status ScanJob::Private::openSession() {
            opt[SANE_NAME_SCAN_Y_RESOLUTION].set_numeric_value(mRes_dpi);
     }
 
-    double left_mm, top_mm, right_mm, bottom_mm;
-
-    // Calculate requested dimensions in mm first
-    left_mm = mLeft_px * (25.4 / mRes_dpi);
-    right_mm = (mLeft_px + mWidth_px) * (25.4 / mRes_dpi);
-    top_mm = mTop_px * (25.4 / mRes_dpi);
-    bottom_mm = (mTop_px + mHeight_px) * (25.4 / mRes_dpi);
+    double left = mLeft_px, top = mTop_px, right = mLeft_px + mWidth_px,
+           bottom = mTop_px + mHeight_px;
 
     if (mScanSource == mpScanner->transparencyUnitSourceName()) {
       // TPU Workaround: Force full vertical scan
+      // We trust the horizontal cropping (X) but override Y to scan from 0 to max physical height.
       mSoftwareCropTop = mTop_px;
       mSoftwareCropHeight = mHeight_px;
 
-      top_mm = 0;
-      // Get physical max from scanner capability (stored in pixels @ 300dpi)
-      double maxPhysHeight_mm = mpScanner->maxHeightPx300dpi() * (25.4 / 300.0);
-      bottom_mm = maxPhysHeight_mm;
+      // Force SANE Y-range to be full physical height
+      // We must ensure 'top' becomes 0 and 'bottom' becomes physical max.
+      top = 0;
+      // Convert physical max pixels (at 300dpi) to logical pixels for the current resolution
+      // No, wait. 'bottom' here is in logical pixels at 'mRes_dpi'.
+      // mpScanner->maxHeightPx300dpi() is at 300dpi.
+      // So physical max in current res pixels = maxHeightPx300dpi * (mRes_dpi / 300.0)
+      double physicalMaxPixels = mpScanner->maxHeightPx300dpi() * (double(mRes_dpi) / 300.0);
+      bottom = physicalMaxPixels;
 
-      std::cerr << "TPU Workaround: Forcing vertical scan from 0 to " << bottom_mm << "mm"
-                << std::endl;
-      std::cerr << "  Software Crop: Top=" << mSoftwareCropTop
+      std::cerr << "TPU Workaround active:" << std::endl;
+      std::cerr << "  Requested Crop: Top=" << mSoftwareCropTop
                 << "px, Height=" << mSoftwareCropHeight << "px" << std::endl;
+      std::cerr << "  Forcing SANE Y: 0 to " << bottom << "px (Physical Max)" << std::endl;
     } else {
       mSoftwareCropTop = 0;
       mSoftwareCropHeight = 0;
     }
 
-    // Now set the options based on the backend's preferred unit
-    SANE_Unit unit = opt[SANE_NAME_SCAN_TL_X].unit();
-    if (unit == SANE_UNIT_MM) {
-      opt[SANE_NAME_SCAN_TL_X] = ::floor(left_mm + 0.5);
-      opt[SANE_NAME_SCAN_TL_Y] = ::floor(top_mm + 0.5);
-      opt[SANE_NAME_SCAN_BR_X] = ::floor(right_mm + 0.5);
-      opt[SANE_NAME_SCAN_BR_Y] = ::floor(bottom_mm + 0.5);
-    } else if (unit == SANE_UNIT_PIXEL) {
-      // Convert mm back to pixels at current resolution if backend wants pixels
-      // (Note: SANE_UNIT_PIXEL usually implies resolution-dependent pixels)
-      opt[SANE_NAME_SCAN_TL_X] = ::floor(left_mm * mRes_dpi / 25.4 + 0.5);
-      opt[SANE_NAME_SCAN_TL_Y] = ::floor(top_mm * mRes_dpi / 25.4 + 0.5);
-      opt[SANE_NAME_SCAN_BR_X] = ::floor(right_mm * mRes_dpi / 25.4 + 0.5);
-      opt[SANE_NAME_SCAN_BR_Y] = ::floor(bottom_mm * mRes_dpi / 25.4 + 0.5);
-    } else {
-      std::cerr << "Unknown geometry unit: " << unit << std::endl;
-      ok = false;
+    switch (opt[SANE_NAME_SCAN_TL_X].unit()) {
+      case SANE_UNIT_PIXEL:
+        break;
+      case SANE_UNIT_MM:
+        for (auto p : {&left, &right, &top, &bottom}) *p *= 25.4 / mRes_dpi;
+        break;
+      default:
+        ok = false;
     }
+    for (auto p : {&left, &right, &top, &bottom}) *p = ::floor(*p + 0.5);
+    opt[SANE_NAME_SCAN_TL_X] = left;
+    opt[SANE_NAME_SCAN_TL_Y] = top;
+    opt[SANE_NAME_SCAN_BR_X] = right;
+    opt[SANE_NAME_SCAN_BR_Y] = bottom;
 
     if (!ok) status = SANE_STATUS_INVAL;
 
@@ -733,6 +730,24 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
       ++mImagesCompleted;
       std::clog << "images completed: " << mImagesCompleted << std::endl;
       updateStatus(status);
+
+      // Software Crop Padding:
+      // If we blindly requested a crop height that exceeds what the scanner physically delivered,
+      // pad the remainder with white to produce a valid image file.
+      if (mSoftwareCropHeight > 0 && pEncoder->linesLeftInCurrentImage() > 0) {
+        std::cerr << "Padding " << pEncoder->linesLeftInCurrentImage()
+                  << " missing lines with white." << std::endl;
+        // 0xFF is white for 8-bit/16-bit Grayscale/RGB.
+        std::vector<char> pad(mpSession->parameters()->bytes_per_line, (char)0xFF);
+        while (pEncoder->linesLeftInCurrentImage() > 0) {
+          try {
+            pEncoder->writeLine(pad.data());
+          } catch (...) {
+            break;
+          }
+        }
+      }
+
       if (pEncoder->linesLeftInCurrentImage() != pEncoder->height()) {
         std::cerr << "incomplete or excess scan data" << std::endl;
         mState = aborted;
