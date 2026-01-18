@@ -686,12 +686,14 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
   }
 
   int linesSkipped = 0;
-  int linesSent = 0;
+  bool firstLineWritten = false;
 
   while (isProcessing()) {
     int linesWritten = 0;
     mLastActive = ::time(nullptr);
-    std::vector<char> buffer(mpSession->parameters()->bytes_per_line);
+    // Zero-init buffer to avoid stale data
+    std::vector<char> buffer(mpSession->parameters()->bytes_per_line, 0);
+    std::cerr << "Starting read loop (Safe Buffer Init)" << std::endl;
     SANE_Status status = SANE_STATUS_GOOD;
     while (status == SANE_STATUS_GOOD && os && isProcessing()) {
       status = mpSession->read(buffer).status();
@@ -703,9 +705,16 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
             linesSkipped++;
             continue;  // Skip top lines
           }
-          if (linesSent >= mSoftwareCropHeight) {
-            continue;  // Discard trailing lines
+          if (pEncoder->linesLeftInCurrentImage() == 0) {
+            continue;  // Drain trailing lines
           }
+        }
+
+        if (!firstLineWritten) {
+          if (mSoftwareCropHeight > 0)
+            std::cerr << "Software crop: writing first line after skipping " << linesSkipped
+                      << " lines." << std::endl;
+          firstLineWritten = true;
         }
 
         applyGamma(buffer);
