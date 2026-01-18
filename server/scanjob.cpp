@@ -126,6 +126,9 @@ struct ScanJob::Private {
   OptionsFile::Options mDeviceOptions;
   std::vector<uint16_t> mGammaTable;
 
+  int mSoftwareCropTop;
+  int mSoftwareCropHeight;
+
   // We need a job-permanent worker thread to execute
   // beginTransfer() and finishTransfer().
   // If these functions are called from two different
