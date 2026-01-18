@@ -219,12 +219,12 @@ bool option::set_string_value(int index, const std::string& value) {
   SANE_Int info = 0;
   SANE_Status status = ::sane_control_option(h, m_index, SANE_ACTION_SET_VALUE,
                                              const_cast<char*>(value.c_str()), &info);
-  log << "[" << m_desc->name << "] := \"" << value << "\"";
+  std::cerr << "[" << m_desc->name << "] := \"" << value << "\"";
   if (status != SANE_STATUS_GOOD)
-    log << " -> " << status;
+    std::cerr << " -> " << status;
   else if (info & SANE_INFO_RELOAD_OPTIONS)
-    log << " -> reload options";
-  log << std::endl;
+    std::cerr << " -> reload options";
+  std::cerr << std::endl;
   if (info & SANE_INFO_RELOAD_OPTIONS) m_set->reload();
   return status == SANE_STATUS_GOOD;
 }
@@ -266,7 +266,7 @@ bool option::set_numeric_value(int index, double value) {
   SANE_Status status = SANE_STATUS_GOOD;
   if (array_size() == 1 && index == 0) {
     status = ::sane_control_option(h, m_index, SANE_ACTION_SET_VALUE, &w, &info);
-    log << "[" << m_desc->name << "] := " << value << m_desc->unit;
+    std::cerr << "[" << m_desc->name << "] := " << value << m_desc->unit;
   } else if (index >= 0 && index < array_size()) {
     std::vector<SANE_Word> data(array_size());
     status = ::sane_control_option(h, m_index, SANE_ACTION_GET_VALUE, data.data(), &info);
@@ -274,15 +274,15 @@ bool option::set_numeric_value(int index, double value) {
       data[index] = w;
       status = ::sane_control_option(h, m_index, SANE_ACTION_SET_VALUE, data.data(), &info);
     }
-    log << "[" << m_desc->name << "][" << index << "] := " << value << m_desc->unit;
+    std::cerr << "[" << m_desc->name << "][" << index << "] := " << value << m_desc->unit;
   } else {
-    log << "invalid array index for parameter " << m_desc->name << ": " << index;
+    std::cerr << "invalid array index for parameter " << m_desc->name << ": " << index;
   }
   if (status != SANE_STATUS_GOOD)
-    log << " -> " << status;
+    std::cerr << " -> " << status;
   else if (info & SANE_INFO_RELOAD_OPTIONS)
-    log << " -> reload options";
-  log << std::endl;
+    std::cerr << " -> reload options";
+  std::cerr << std::endl;
   if (info & SANE_INFO_RELOAD_OPTIONS) m_set->reload();
   return status == SANE_STATUS_GOOD;
 }
