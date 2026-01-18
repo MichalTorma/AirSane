@@ -549,38 +549,51 @@ SANE_Status ScanJob::Private::openSession() {
            opt[SANE_NAME_SCAN_Y_RESOLUTION].set_numeric_value(mRes_dpi);
     }
 
-    double left = mLeft_px, top = mTop_px, right = mLeft_px + mWidth_px,
-           bottom = mTop_px + mHeight_px;
+    double left_mm, top_mm, right_mm, bottom_mm;
+
+    // Calculate requested dimensions in mm first
+    left_mm = mLeft_px * (25.4 / mRes_dpi);
+    right_mm = (mLeft_px + mWidth_px) * (25.4 / mRes_dpi);
+    top_mm = mTop_px * (25.4 / mRes_dpi);
+    bottom_mm = (mTop_px + mHeight_px) * (25.4 / mRes_dpi);
 
     if (mScanSource == mpScanner->transparencyUnitSourceName()) {
-      // Workaround for Canon 9000F (and possibly others) backend vertical offset issues with TPU.
-      // We force a full-height scan and crop in software.
-      // We trust the horizontal cropping (X) but override Y.
+      // TPU Workaround: Force full vertical scan
       mSoftwareCropTop = mTop_px;
       mSoftwareCropHeight = mHeight_px;
-      top = 0;
-      bottom = mpScanner->maxHeightPx300dpi() * (25.4 / 300.0);  // Reset to physical max
-      std::cerr << "TPU Workaround: Forcing vertical scan from 0 to " << bottom << "mm"
+
+      top_mm = 0;
+      // Get physical max from scanner capability (stored in pixels @ 300dpi)
+      double maxPhysHeight_mm = mpScanner->maxHeightPx300dpi() * (25.4 / 300.0);
+      bottom_mm = maxPhysHeight_mm;
+
+      std::cerr << "TPU Workaround: Forcing vertical scan from 0 to " << bottom_mm << "mm"
                 << std::endl;
+      std::cerr << "  Software Crop: Top=" << mSoftwareCropTop
+                << "px, Height=" << mSoftwareCropHeight << "px" << std::endl;
     } else {
       mSoftwareCropTop = 0;
-      mSoftwareCropHeight = 0;  // 0 means no software crop (use SANE dimensions)
+      mSoftwareCropHeight = 0;
     }
 
-    switch (opt[SANE_NAME_SCAN_TL_X].unit()) {
-      case SANE_UNIT_PIXEL:
-        break;
-      case SANE_UNIT_MM:
-        for (auto p : {&left, &right, &top, &bottom}) *p *= 25.4 / mRes_dpi;
-        break;
-      default:
-        ok = false;
+    // Now set the options based on the backend's preferred unit
+    SANE_Unit unit = opt[SANE_NAME_SCAN_TL_X].unit();
+    if (unit == SANE_UNIT_MM) {
+      opt[SANE_NAME_SCAN_TL_X] = ::floor(left_mm + 0.5);
+      opt[SANE_NAME_SCAN_TL_Y] = ::floor(top_mm + 0.5);
+      opt[SANE_NAME_SCAN_BR_X] = ::floor(right_mm + 0.5);
+      opt[SANE_NAME_SCAN_BR_Y] = ::floor(bottom_mm + 0.5);
+    } else if (unit == SANE_UNIT_PIXEL) {
+      // Convert mm back to pixels at current resolution if backend wants pixels
+      // (Note: SANE_UNIT_PIXEL usually implies resolution-dependent pixels)
+      opt[SANE_NAME_SCAN_TL_X] = ::floor(left_mm * mRes_dpi / 25.4 + 0.5);
+      opt[SANE_NAME_SCAN_TL_Y] = ::floor(top_mm * mRes_dpi / 25.4 + 0.5);
+      opt[SANE_NAME_SCAN_BR_X] = ::floor(right_mm * mRes_dpi / 25.4 + 0.5);
+      opt[SANE_NAME_SCAN_BR_Y] = ::floor(bottom_mm * mRes_dpi / 25.4 + 0.5);
+    } else {
+      std::cerr << "Unknown geometry unit: " << unit << std::endl;
+      ok = false;
     }
-    for (auto p : {&left, &right, &top, &bottom}) *p = ::floor(*p + 0.5);
-    opt[SANE_NAME_SCAN_TL_X] = left;
-    opt[SANE_NAME_SCAN_TL_Y] = top;
-    opt[SANE_NAME_SCAN_BR_X] = right;
-    opt[SANE_NAME_SCAN_BR_Y] = bottom;
 
     if (!ok) status = SANE_STATUS_INVAL;
 
