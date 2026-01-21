@@ -770,6 +770,17 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
 
         applyGamma(buffer);
         if (!mColorScan && mDeviceOptions.synthesize_gray) synthesizeGray(buffer);
+
+        // PNG requires Big Endian (Network Byte Order) for 16-bit data.
+        // SANE delivers Native Byte Order (usually Little Endian on x86/ARM).
+        // We must swap bytes if we are 16-bit.
+        if (p->depth == 16) {
+          uint8_t* b = reinterpret_cast<uint8_t*>(buffer.data());
+          for (size_t i = 0; i < buffer.size(); i += 2) {
+            std::swap(b[i], b[i + 1]);
+          }
+        }
+
         try {
           pEncoder->writeLine(buffer.data());
           ++linesWritten;
