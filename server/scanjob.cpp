@@ -658,12 +658,38 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
 
     // Override local color/depth settings with what SANE is actually delivering
     // This handles cases where options.conf forced a different mode than requested.
+    bool formatChanged = false;
     if (p->format == SANE_FRAME_RGB) {
-      mColorScan = true;
+      if (!mColorScan) {
+        mColorScan = true;
+        formatChanged = true;
+      }
       pEncoder->setColorspace(ImageEncoder::RGB);
     } else {
-      mColorScan = false;
+      if (mColorScan) {
+        mColorScan = false;
+        formatChanged = true;
+      }
       pEncoder->setColorspace(ImageEncoder::Grayscale);
+    }
+
+    if (mBitDepth != p->depth) {
+      mBitDepth = p->depth;
+      formatChanged = true;
+    }
+
+    if (formatChanged) {
+      if (mColorScan) {
+        std::clog << "Format/Depth changed (Color " << mBitDepth
+                  << "bpp), reloading gamma table with color_gamma: " << mDeviceOptions.color_gamma
+                  << std::endl;
+        initGammaTable(mDeviceOptions.color_gamma);
+      } else {
+        std::clog << "Format/Depth changed (Gray " << mBitDepth
+                  << "bpp), reloading gamma table with gray_gamma: " << mDeviceOptions.gray_gamma
+                  << std::endl;
+        initGammaTable(mDeviceOptions.gray_gamma);
+      }
     }
 
     pEncoder->setResolutionDpi(mRes_dpi);
