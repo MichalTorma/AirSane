@@ -281,13 +281,6 @@ void ScanJob::Private::init(const ScanSettingsXml& settings, bool autoselectForm
   }
   std::clog << "job kind: " << kindString() << std::endl;
 
-  if (mScanSource == mpScanner->transparencyUnitSourceName()) {
-    std::clog << "Forcing 16-bit depth and PNG format for Transparency Unit" << std::endl;
-    mBitDepth = 16;
-    // Force PNG because JPEG likely doesn't support 16-bit
-    mDocumentFormat = HttpServer::MIME_TYPE_PNG;
-  }
-
   applyDeviceOptions(options);
 
   if (err) {
