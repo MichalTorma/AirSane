@@ -664,12 +664,6 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
               << ", Depth: " << p->depth << ", mColorScan: " << mColorScan
               << ", mBitDepth: " << mBitDepth << std::endl;
 
-    std::cerr << "[Debug] SANE Format: "
-              << (p->format == SANE_FRAME_RGB ? "RGB"
-                                              : (p->format == SANE_FRAME_GRAY ? "GRAY" : "OTHER"))
-              << ", Depth: " << p->depth << ", mColorScan: " << mColorScan
-              << ", mBitDepth: " << mBitDepth << std::endl;
-
     // Override local color/depth settings with what SANE is actually delivering
     // This handles cases where options.conf forced a different mode than requested.
     bool formatChanged = false;
@@ -699,13 +693,6 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
                   << std::endl;
         initGammaTable(mDeviceOptions.color_gamma);
       } else {
-        std::cerr << "Format/Depth changed (Gray " << mBitDepth
-                  << "bpp), reloading gamma table with gray_gamma: " << mDeviceOptions.gray_gamma
-                  << std::endl;
-        initGammaTable(mDeviceOptions.gray_gamma);
-        initGammaTable(mDeviceOptions.color_gamma);
-      }
-      else {
         std::cerr << "Format/Depth changed (Gray " << mBitDepth
                   << "bpp), reloading gamma table with gray_gamma: " << mDeviceOptions.gray_gamma
                   << std::endl;
