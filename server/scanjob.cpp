@@ -555,8 +555,7 @@ SANE_Status ScanJob::Private::openSession() {
 
     // Verify if the resolution stuck. Some backends (e.g. Canoscan) reset resolution
     // when other options (like Source) are "reloaded" internally.
-    SANE_Int currentRes = 0;
-    opt[SANE_NAME_SCAN_RESOLUTION].get_value(&currentRes);
+    SANE_Int currentRes = static_cast<SANE_Int>(opt[SANE_NAME_SCAN_RESOLUTION].numeric_value());
     if (currentRes != mRes_dpi) {
       std::cerr << "WARNING: Resolution reset to " << currentRes << " by backend. Forcing "
                 << mRes_dpi << " again." << std::endl;
