@@ -656,6 +656,12 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
   if (isProcessing()) {
     auto p = mpSession->parameters();
 
+    std::cerr << "[Debug] SANE Format: "
+              << (p->format == SANE_FRAME_RGB ? "RGB"
+                                              : (p->format == SANE_FRAME_GRAY ? "GRAY" : "OTHER"))
+              << ", Depth: " << p->depth << ", mColorScan: " << mColorScan
+              << ", mBitDepth: " << mBitDepth << std::endl;
+
     // Override local color/depth settings with what SANE is actually delivering
     // This handles cases where options.conf forced a different mode than requested.
     bool formatChanged = false;
