@@ -686,12 +686,12 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
 
     if (formatChanged) {
       if (mColorScan) {
-        std::clog << "Format/Depth changed (Color " << mBitDepth
+        std::cerr << "Format/Depth changed (Color " << mBitDepth
                   << "bpp), reloading gamma table with color_gamma: " << mDeviceOptions.color_gamma
                   << std::endl;
         initGammaTable(mDeviceOptions.color_gamma);
       } else {
-        std::clog << "Format/Depth changed (Gray " << mBitDepth
+        std::cerr << "Format/Depth changed (Gray " << mBitDepth
                   << "bpp), reloading gamma table with gray_gamma: " << mDeviceOptions.gray_gamma
                   << std::endl;
         initGammaTable(mDeviceOptions.gray_gamma);
