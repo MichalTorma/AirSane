@@ -529,7 +529,6 @@ SANE_Status ScanJob::Private::openSession() {
   if (status == SANE_STATUS_GOOD) {
     auto& opt = mpSession->options();
 
-    for (const auto& option : mDeviceOptions.sane_options) opt[option.first] = option.second;
 
     // The order in which options are set matters for some backends.
     if (mRes_dpi < mpScanner->minResDpi()) {
@@ -548,6 +547,9 @@ SANE_Status ScanJob::Private::openSession() {
       ok = opt[SANE_NAME_SCAN_X_RESOLUTION].set_numeric_value(mRes_dpi) ||
            opt[SANE_NAME_SCAN_Y_RESOLUTION].set_numeric_value(mRes_dpi);
     }
+
+    // Apply device options AFTER setting source/mode/res so that source-dependent options are available
+    for (const auto& option : mDeviceOptions.sane_options) opt[option.first] = option.second;
 
     double left = mLeft_px, top = mTop_px, right = mLeft_px + mWidth_px,
            bottom = mTop_px + mHeight_px;
