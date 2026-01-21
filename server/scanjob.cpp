@@ -281,6 +281,13 @@ void ScanJob::Private::init(const ScanSettingsXml& settings, bool autoselectForm
   }
   std::clog << "job kind: " << kindString() << std::endl;
 
+  if (mScanSource == mpScanner->transparencyUnitSourceName()) {
+    std::clog << "Forcing 16-bit depth and PNG format for Transparency Unit" << std::endl;
+    mBitDepth = 16;
+    // Force PNG because JPEG likely doesn't support 16-bit
+    mDocumentFormat = HttpServer::MIME_TYPE_PNG;
+  }
+
   applyDeviceOptions(options);
 
   if (err) {
@@ -553,6 +560,10 @@ SANE_Status ScanJob::Private::openSession() {
            bottom = mTop_px + mHeight_px;
 
     if (mScanSource == mpScanner->transparencyUnitSourceName()) {
+      // TPU: Force linear gamma for maximum dynamic range
+      std::cerr << "TPU: Forcing gamma to 1.0" << std::endl;
+      // Use string "gamma" because SANE_NAME_GAMMA_VECTOR is usually "gamma-vector"
+      opt["gamma"].set_numeric_value(1.0);
       // TPU Workaround: Force full vertical scan
       // We trust the horizontal cropping (X) but override Y to scan from 0 to max physical height.
       mSoftwareCropTop = mTop_px;
