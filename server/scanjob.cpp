@@ -529,7 +529,6 @@ SANE_Status ScanJob::Private::openSession() {
   if (status == SANE_STATUS_GOOD) {
     auto& opt = mpSession->options();
 
-
     // The order in which options are set matters for some backends.
     if (mRes_dpi < mpScanner->minResDpi()) {
       std::cerr << "Requested resolution " << mRes_dpi << " is below minimum "
@@ -548,7 +547,8 @@ SANE_Status ScanJob::Private::openSession() {
            opt[SANE_NAME_SCAN_Y_RESOLUTION].set_numeric_value(mRes_dpi);
     }
 
-    // Apply device options AFTER setting source/mode/res so that source-dependent options are available
+    // Apply device options AFTER setting source/mode/res so that source-dependent options are
+    // available
     for (const auto& option : mDeviceOptions.sane_options) opt[option.first] = option.second;
 
     double left = mLeft_px, top = mTop_px, right = mLeft_px + mWidth_px,
@@ -654,12 +654,19 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
     }
   }
   if (isProcessing()) {
-    pEncoder->setResolutionDpi(mRes_dpi);
-    if (mColorScan)
-      pEncoder->setColorspace(ImageEncoder::RGB);
-    else
-      pEncoder->setColorspace(ImageEncoder::Grayscale);
     auto p = mpSession->parameters();
+
+    // Override local color/depth settings with what SANE is actually delivering
+    // This handles cases where options.conf forced a different mode than requested.
+    if (p->format == SANE_FRAME_RGB) {
+      mColorScan = true;
+      pEncoder->setColorspace(ImageEncoder::RGB);
+    } else {
+      mColorScan = false;
+      pEncoder->setColorspace(ImageEncoder::Grayscale);
+    }
+
+    pEncoder->setResolutionDpi(mRes_dpi);
     pEncoder->setWidth(p->pixels_per_line);
 
     // Apply software crop height if active
