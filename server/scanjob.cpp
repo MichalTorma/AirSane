@@ -540,16 +540,18 @@ SANE_Status ScanJob::Private::openSession() {
     opt[SANE_NAME_SCAN_SOURCE] = mScanSource;
     opt[SANE_NAME_SCAN_MODE] = mColorMode;
     opt[SANE_NAME_BIT_DEPTH] = mBitDepth;
+
+    // Apply device options AFTER setting source so source-dependent options are valid
+    // BUT we must apply resolution AFTER device options, because setting 'source' (even to same
+    // value) in device options can reset the backend's resolution to default (e.g. 300dpi).
+    for (const auto& option : mDeviceOptions.sane_options) opt[option.first] = option.second;
+
     bool ok = opt[SANE_NAME_SCAN_RESOLUTION].set_numeric_value(mRes_dpi);
     if (!ok) {
       std::cerr << "Failed to set resolution " << mRes_dpi << std::endl;
       ok = opt[SANE_NAME_SCAN_X_RESOLUTION].set_numeric_value(mRes_dpi) ||
            opt[SANE_NAME_SCAN_Y_RESOLUTION].set_numeric_value(mRes_dpi);
     }
-
-    // Apply device options AFTER setting source/mode/res so that source-dependent options are
-    // available
-    for (const auto& option : mDeviceOptions.sane_options) opt[option.first] = option.second;
 
     double left = mLeft_px, top = mTop_px, right = mLeft_px + mWidth_px,
            bottom = mTop_px + mHeight_px;
@@ -662,6 +664,12 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
               << ", Depth: " << p->depth << ", mColorScan: " << mColorScan
               << ", mBitDepth: " << mBitDepth << std::endl;
 
+    std::cerr << "[Debug] SANE Format: "
+              << (p->format == SANE_FRAME_RGB ? "RGB"
+                                              : (p->format == SANE_FRAME_GRAY ? "GRAY" : "OTHER"))
+              << ", Depth: " << p->depth << ", mColorScan: " << mColorScan
+              << ", mBitDepth: " << mBitDepth << std::endl;
+
     // Override local color/depth settings with what SANE is actually delivering
     // This handles cases where options.conf forced a different mode than requested.
     bool formatChanged = false;
@@ -691,6 +699,13 @@ void ScanJob::Private::finishTransfer(std::ostream& os) {
                   << std::endl;
         initGammaTable(mDeviceOptions.color_gamma);
       } else {
+        std::cerr << "Format/Depth changed (Gray " << mBitDepth
+                  << "bpp), reloading gamma table with gray_gamma: " << mDeviceOptions.gray_gamma
+                  << std::endl;
+        initGammaTable(mDeviceOptions.gray_gamma);
+        initGammaTable(mDeviceOptions.color_gamma);
+      }
+      else {
         std::cerr << "Format/Depth changed (Gray " << mBitDepth
                   << "bpp), reloading gamma table with gray_gamma: " << mDeviceOptions.gray_gamma
                   << std::endl;
